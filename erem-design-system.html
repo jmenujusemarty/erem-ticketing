@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>erem design system</title>
+<style>
+
+/* ═══════════════════════════════════════════════════════════
+   DESIGN TOKENS  — zkopíruj toto do každého projektu
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  /* Barvy */
+  --accent:  #007AFF;   /* primární modrá */
+  --green:   #34C759;   /* úspěch, vyřešeno */
+  --red:     #FF3B30;   /* chyba, nebezpečí */
+  --orange:  #FF9500;   /* varování, nové */
+  --purple:  #AF52DE;   /* AI, speciální akce */
+  --teal:    #32ADE6;   /* info, sekundární */
+
+  /* Text */
+  --text:    #0f172a;   /* hlavní text */
+  --text2:   #475569;   /* sekundární text */
+  --muted:   #94a3b8;   /* placeholder, hint */
+
+  /* Povrchy (glassmorphism) */
+  --surface:   rgba(255,255,255,0.82);
+  --surface2:  rgba(255,255,255,0.62);
+  --border:    rgba(255,255,255,0.76);
+  --border2:   rgba(15,23,42,0.08);
+  --shadow:    0 12px 40px rgba(15,23,42,0.08);
+  --shadow-sm: 0 4px 16px rgba(15,23,42,0.06);
+
+  /* Poloměry */
+  --r-card: 22px;
+  --r-btn:  100px;    /* pilulka */
+  --r-in:   14px;     /* inputy */
+  --r-chip: 10px;     /* chipy, badges */
+
+  /* Blur efekty */
+  --blur:    blur(20px) saturate(145%);
+  --blur-sm: blur(14px) saturate(130%);
+
+  /* Přechody */
+  --trans: all 0.18s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESET + BASE
+   ═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+
+body {
+  font-family: "SF Pro Display","SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(210,226,255,0.55) 0%, transparent 30%),
+    radial-gradient(circle at 88% 8%, rgba(200,240,220,0.35) 0%, transparent 26%),
+    linear-gradient(180deg, #f5f6fa 0%, #eef1f6 100%);
+  background-attachment: fixed;
+  min-height: 100dvh;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NAVBAR
+   ═══════════════════════════════════════════════════════════ */
+.navbar {
+  position: sticky; top: 0; z-index: 40;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  border-bottom: 1px solid rgba(255,255,255,0.8);
+  box-shadow: 0 1px 0 rgba(15,23,42,0.06);
+  padding: 0 24px; height: 60px;
+  display: flex; align-items: center; gap: 8px;
+}
+.navbar-brand {
+  font-size:17px; font-weight:700; color:var(--text); letter-spacing:-0.3px;
+  margin-right:8px; display:flex; align-items:center; gap:8px;
+}
+.navbar-brand svg { width:24px; height:24px; color:var(--accent); }
+.navbar-sep { width:1px; height:20px; background:var(--border2); margin:0 4px; }
+.nav-link {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:7px 14px; border-radius:var(--r-btn);
+  font-size:14px; font-weight:500; color:var(--text2);
+  text-decoration:none; border:none; background:transparent; cursor:pointer;
+  transition:var(--trans);
+}
+.nav-link svg { width:15px; height:15px; flex-shrink:0; }
+.nav-link:hover { background:rgba(0,122,255,0.08); color:var(--accent); }
+.nav-link.active { background:rgba(0,122,255,0.1); color:var(--accent); font-weight:600; }
+.nav-spacer { flex:1; }
+.nav-logout { color:var(--red); }
+.nav-logout:hover { background:rgba(255,59,48,0.08); color:var(--red); }
+
+/* ═══════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════ */
+.page    { max-width:1100px; margin:0 auto; padding:32px 24px 64px; }
+.page-sm { max-width:700px;  margin:0 auto; padding:32px 24px 64px; }
+
+.page-head { margin-bottom:28px; }
+.page-eyebrow {
+  font-size:11px; font-weight:600; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:6px;
+}
+.page-title { font-size:30px; font-weight:800; letter-spacing:-0.5px; line-height:1.1; }
+.page-sub   { margin-top:6px; font-size:15px; color:var(--text2); }
+
+.section-title {
+  font-size:13px; font-weight:700; letter-spacing:0.07em;
+  text-transform:uppercase; color:var(--text2); margin-bottom:12px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KARTY
+   ═══════════════════════════════════════════════════════════ */
+.card {
+  background: linear-gradient(180deg,rgba(255,255,255,0.82) 0%,rgba(255,255,255,0.68) 100%);
+  backdrop-filter:var(--blur); -webkit-backdrop-filter:var(--blur);
+  border:1px solid var(--border); border-radius:var(--r-card);
+  box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,0.65);
+}
+.card-soft {
+  background:rgba(255,255,255,0.56); backdrop-filter:var(--blur-sm);
+  -webkit-backdrop-filter:var(--blur-sm);
+  border:1px solid rgba(255,255,255,0.8); border-radius:var(--r-card);
+  box-shadow:var(--shadow-sm);
+}
+.card-inner {
+  background:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.75);
+  border-radius:16px; box-shadow:0 2px 8px rgba(15,23,42,0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STATS GRID
+   ═══════════════════════════════════════════════════════════ */
+.stats-grid {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px;
+}
+@media(max-width:800px){ .stats-grid { grid-template-columns:repeat(2,1fr); } }
+@media(max-width:480px){ .stats-grid { grid-template-columns:1fr 1fr; gap:12px; } }
+.stat-card  { padding:20px; }
+.stat-label { font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--text2); margin-bottom:8px; }
+.stat-num   { font-size:36px; font-weight:800; letter-spacing:-1px; line-height:1; }
+.stat-sub   { font-size:12px; color:var(--muted); margin-top:4px; }
+
+/* ═══════════════════════════════════════════════════════════
+   BADGES + DOTS
+   ═══════════════════════════════════════════════════════════ */
+.badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 10px; border-radius:var(--r-chip);
+  font-size:12px; font-weight:600; letter-spacing:0.01em;
+}
+.badge-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+.badge-nova      { background:rgba(255,149,0,0.12);  color:#c47900; }
+.badge-reseni    { background:rgba(0,122,255,0.11);  color:#0062cc; }
+.badge-vyreseno  { background:rgba(52,199,89,0.13);  color:#1e8e3e; }
+.badge-zamitnuto { background:rgba(255,59,48,0.11);  color:#c9302c; }
+.badge-info      { background:rgba(50,173,230,0.12); color:#1a7a9e; }
+
+.dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.dot-nova     { background:var(--orange); }
+.dot-reseni   { background:var(--accent); }
+.dot-vyreseno { background:var(--green); }
+.dot-red      { background:var(--red); }
+
+/* ═══════════════════════════════════════════════════════════
+   TLAČÍTKA
+   ═══════════════════════════════════════════════════════════ */
+.btn {
+  display:inline-flex; align-items:center; gap:7px;
+  padding:11px 20px; border-radius:var(--r-btn);
+  font-size:14px; font-weight:600; border:none; cursor:pointer;
+  text-decoration:none; font-family:inherit;
+  transition:transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+  white-space:nowrap;
+}
+.btn svg { width:15px; height:15px; flex-shrink:0; }
+.btn:hover   { transform:translateY(-1px); }
+.btn:active  { transform:translateY(0); }
+.btn:disabled{ opacity:0.5; cursor:not-allowed; transform:none !important; }
+
+.btn-primary  { background:linear-gradient(180deg,#4d6fff 0%,#3559ff 100%); color:#fff; box-shadow:0 10px 24px rgba(53,89,255,0.26); }
+.btn-primary:hover  { box-shadow:0 14px 30px rgba(53,89,255,0.32); }
+
+.btn-secondary { background:rgba(255,255,255,0.72); color:var(--text2); border:1px solid rgba(255,255,255,0.85); box-shadow:0 6px 18px rgba(15,23,42,0.06); backdrop-filter:var(--blur-sm); -webkit-backdrop-filter:var(--blur-sm); }
+.btn-secondary:hover { background:rgba(255,255,255,0.9); color:var(--text); }
+
+.btn-green  { background:linear-gradient(180deg,#40c973 0%,#2fb55f 100%); color:#fff; box-shadow:0 8px 20px rgba(52,199,89,0.26); }
+.btn-green:hover  { box-shadow:0 12px 26px rgba(52,199,89,0.32); }
+
+.btn-danger { background:rgba(255,59,48,0.1); color:var(--red); border:1px solid rgba(255,59,48,0.15); }
+.btn-danger:hover { background:rgba(255,59,48,0.16); }
+
+.btn-purple { background:linear-gradient(180deg,#c97bff 0%,#af52de 100%); color:#fff; box-shadow:0 8px 20px rgba(175,82,222,0.26); }
+
+.btn-sm { padding:7px 14px; font-size:13px; }
+.btn-xs { padding:5px 10px; font-size:12px; }
+
+/* ═══════════════════════════════════════════════════════════
+   FORMULÁŘE
+   ═══════════════════════════════════════════════════════════ */
+.form-group  { margin-bottom:20px; }
+.form-label  { display:block; font-size:13px; font-weight:600; color:var(--text2); margin-bottom:7px; letter-spacing:0.01em; }
+.form-hint   { font-size:12px; color:var(--muted); margin-top:5px; }
+
+.form-input, .form-select, .form-textarea {
+  width:100%; padding:12px 16px;
+  border:1px solid rgba(15,23,42,0.12);
+  border-radius:var(--r-in); font-size:15px; font-family:inherit;
+  color:var(--text); background:rgba(255,255,255,0.72);
+  backdrop-filter:var(--blur-sm); -webkit-backdrop-filter:var(--blur-sm);
+  transition:border 0.15s, box-shadow 0.15s; outline:none; -webkit-appearance:none;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,122,255,0.12);
+  background:rgba(255,255,255,0.9);
+}
+.form-textarea { resize:vertical; min-height:120px; line-height:1.6; }
+
+/* Toggle switch */
+.toggle-wrap { display:flex; align-items:center; gap:12px; }
+.toggle { position:relative; width:51px; height:31px; flex-shrink:0; }
+.toggle input { opacity:0; width:0; height:0; position:absolute; }
+.toggle-track { position:absolute; inset:0; border-radius:100px; background:#e0e0e5; transition:background 0.2s; cursor:pointer; }
+.toggle input:checked ~ .toggle-track { background:var(--green); }
+.toggle-thumb { position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff; box-shadow:0 3px 8px rgba(0,0,0,0.18); transition:transform 0.22s cubic-bezier(0.4,0,0.2,1); pointer-events:none; }
+.toggle input:checked ~ .toggle-track .toggle-thumb { transform:translateX(20px); }
+
+/* ═══════════════════════════════════════════════════════════
+   ALERTS
+   ═══════════════════════════════════════════════════════════ */
+.alert {
+  display:flex; align-items:center; gap:10px;
+  padding:13px 16px; border-radius:14px; font-size:14px; font-weight:500;
+  margin-bottom:16px; backdrop-filter:var(--blur-sm); -webkit-backdrop-filter:var(--blur-sm);
+}
+.alert svg { width:16px; height:16px; flex-shrink:0; }
+.alert-success { background:rgba(52,199,89,0.10);  color:#1a7a33; border:1px solid rgba(52,199,89,0.20); }
+.alert-error   { background:rgba(255,59,48,0.09);  color:#b92d24; border:1px solid rgba(255,59,48,0.18); }
+.alert-warning { background:rgba(255,149,0,0.09);  color:#a35e00; border:1px solid rgba(255,149,0,0.18); }
+.alert-info    { background:rgba(0,122,255,0.08);  color:#0055aa; border:1px solid rgba(0,122,255,0.15); }
+
+/* ═══════════════════════════════════════════════════════════
+   INFO ROWS (detail view)
+   ═══════════════════════════════════════════════════════════ */
+.info-grid { display:flex; flex-direction:column; }
+.info-row  { display:grid; grid-template-columns:160px 1fr; gap:12px; padding:13px 20px; border-bottom:1px solid rgba(15,23,42,0.055); }
+.info-row:last-child { border-bottom:none; }
+.info-key  { font-size:13px; font-weight:600; color:var(--text2); }
+.info-val  { font-size:14px; color:var(--text); }
+
+/* ═══════════════════════════════════════════════════════════
+   LIST ROWS (přehledový seznam)
+   ═══════════════════════════════════════════════════════════ */
+.list-items { display:flex; flex-direction:column; gap:10px; }
+.list-row {
+  display:flex; align-items:center; gap:16px;
+  padding:16px 20px; text-decoration:none; color:inherit;
+  transition:var(--trans); cursor:pointer;
+}
+.list-row:hover { transform:translateY(-1px); box-shadow:0 18px 44px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.7); }
+
+/* ═══════════════════════════════════════════════════════════
+   PROGRESS BAR
+   ═══════════════════════════════════════════════════════════ */
+.prog-track { height:5px; border-radius:100px; background:rgba(15,23,42,0.08); overflow:hidden; margin-top:8px; }
+.prog-fill  { height:100%; border-radius:100px; transition:width 0.6s ease; }
+
+/* ═══════════════════════════════════════════════════════════
+   TOOLTIPS  — data-tip="text" na jakýkoliv element
+   ═══════════════════════════════════════════════════════════ */
+[data-tip] { position:relative; }
+[data-tip]::after {
+  content:attr(data-tip); position:absolute;
+  bottom:calc(100% + 7px); left:50%;
+  transform:translateX(-50%) translateY(4px);
+  background:rgba(15,23,42,0.88); color:#fff;
+  font-size:11.5px; font-weight:500; line-height:1.4; white-space:nowrap;
+  padding:5px 10px; border-radius:8px; pointer-events:none;
+  opacity:0; transition:opacity 0.15s, transform 0.15s;
+  z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.18);
+}
+[data-tip]:hover::after { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ═══════════════════════════════════════════════════════════
+   SPINNER + LOADING
+   ═══════════════════════════════════════════════════════════ */
+.spinner { width:18px; height:18px; border:2px solid rgba(0,122,255,0.22); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.dot-pulse { display:inline-flex; gap:4px; align-items:center; }
+.dot-pulse::before,.dot-pulse::after,.dot-pulse span {
+  content:''; width:5px; height:5px; border-radius:50%; background:var(--muted);
+  animation:pulse 1.2s ease-in-out infinite;
+}
+.dot-pulse::after  { animation-delay:0.2s; }
+.dot-pulse span { animation-delay:0.4s; }
+@keyframes pulse { 0%,80%,100%{opacity:.3;transform:scale(0.8)} 40%{opacity:1;transform:scale(1)} }
+
+/* ═══════════════════════════════════════════════════════════
+   VSTUP A VÝSTUP ANIMACE
+   ═══════════════════════════════════════════════════════════ */
+@media(prefers-reduced-motion:no-preference) {
+  .rise   { animation:rise-in 0.42s cubic-bezier(0.22,1,0.36,1) both; }
+  .rise-1 { animation-delay:0.04s; }
+  .rise-2 { animation-delay:0.08s; }
+  .rise-3 { animation-delay:0.12s; }
+  .rise-4 { animation-delay:0.16s; }
+}
+@keyframes rise-in { from{opacity:0;transform:translateY(14px) scale(0.985)} to{opacity:1;transform:none} }
+
+/* ═══════════════════════════════════════════════════════════
+   EMPTY STATE
+   ═══════════════════════════════════════════════════════════ */
+.empty { text-align:center; padding:64px 24px; color:var(--muted); }
+.empty svg { width:56px; height:56px; opacity:0.3; margin-bottom:16px; }
+.empty h3  { font-size:18px; font-weight:700; color:var(--text2); margin-bottom:8px; }
+.empty p   { font-size:14px; }
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITY TŘÍDY
+   ═══════════════════════════════════════════════════════════ */
+.flex           { display:flex; }
+.flex-col       { flex-direction:column; }
+.items-center   { align-items:center; }
+.justify-between{ justify-content:space-between; }
+.gap-1 { gap:4px; }  .gap-2 { gap:8px; }  .gap-3 { gap:12px; }  .gap-4 { gap:16px; }
+.mb-2  { margin-bottom:8px; }   .mb-4  { margin-bottom:16px; }  .mb-6  { margin-bottom:24px; }
+.mt-4  { margin-top:16px; }
+.p-4   { padding:16px; }  .p-5 { padding:20px; }  .p-6 { padding:24px; }
+.text-sm   { font-size:13px; }  .text-xs { font-size:11px; }
+.text-muted  { color:var(--muted); }
+.text-accent { color:var(--accent); }
+.text-green  { color:var(--green); }
+.text-red    { color:var(--red); }
+.font-bold   { font-weight:700; }
+.font-mono   { font-family:"SF Mono",ui-monospace,monospace; font-size:13px; }
+.divider     { height:1px; background:rgba(15,23,42,0.07); margin:20px 0; }
+.truncate    { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════ */
+@media(max-width:640px) {
+  .page,.page-sm { padding:16px 12px 80px; }
+  .navbar        { padding:0 12px; height:52px; }
+  .navbar-brand  { font-size:15px; }
+  .navbar-sep    { display:none; }
+  .nav-link      { padding:6px 8px; font-size:12px; gap:4px; }
+  .page-title    { font-size:22px; }
+  .stat-num      { font-size:28px; }
+  .form-input,.form-select,.form-textarea { font-size:16px; } /* prevent iOS zoom */
+  .btn           { padding:10px 16px; font-size:13px; }
+  .btn-sm        { padding:8px 12px; font-size:12px; }
+}
+@media(max-width:480px) {
+  .nav-link span { display:none; }
+  .navbar        { gap:0; }
+  .nav-link      { padding:8px 10px; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DESIGN SYSTEM PAGE STYLES (jen pro tuto dokumentaci)
+   ═══════════════════════════════════════════════════════════ */
+.ds-section { margin-bottom:60px; }
+.ds-title   { font-size:22px; font-weight:800; color:var(--text); letter-spacing:-0.3px; margin-bottom:6px; display:flex; align-items:center; gap:10px; }
+.ds-title-num { font-size:13px; font-weight:700; color:var(--accent); background:rgba(0,122,255,0.1); padding:3px 9px; border-radius:100px; }
+.ds-desc    { font-size:14px; color:var(--text2); margin-bottom:24px; line-height:1.6; }
+.ds-row     { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-bottom:16px; }
+.ds-demo    { padding:24px; }
+.ds-label   { font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+.ds-token   { display:inline-flex; align-items:center; gap:8px; padding:6px 12px; background:rgba(15,23,42,0.04); border-radius:8px; font-family:monospace; font-size:12px; color:var(--text2); }
+.ds-swatch  { width:24px; height:24px; border-radius:6px; border:1px solid rgba(0,0,0,0.08); flex-shrink:0; }
+.ds-tokens-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:8px; }
+</style>
+</head>
+<body>
+
+<!-- NAVBAR UKÁZKA -->
+<nav class="navbar">
+  <div class="navbar-brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Název projektu
+  </div>
+  <div class="navbar-sep"></div>
+  <a href="#" class="nav-link active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span>Přehled</span>
+  </a>
+  <a href="#" class="nav-link">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    <span>Statistiky</span>
+  </a>
+  <a href="#" class="nav-link">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span>Nastavení</span>
+  </a>
+  <div class="nav-spacer"></div>
+  <span class="text-sm text-muted" style="padding:0 8px;">jméno admina</span>
+  <a href="#" class="nav-link nav-logout">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    <span>Odhlásit</span>
+  </a>
+</nav>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="page-head rise">
+    <div class="page-eyebrow">erem</div>
+    <h1 class="page-title">Design System</h1>
+    <p class="page-sub">Vizuální jazyk pro weby a aplikace — copy-paste připravené komponenty</p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 1. BARVY -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section rise rise-1">
+    <div class="ds-title"><span class="ds-title-num">01</span> Barvy</div>
+    <p class="ds-desc">Design tokens — použij CSS custom properties všude. Nikdy nepíšeš hex kódy přímo.</p>
+
+    <div class="card ds-demo mb-4">
+      <div class="ds-label">Hlavní paleta</div>
+      <div class="ds-tokens-grid">
+        <div class="ds-token"><div class="ds-swatch" style="background:#007AFF;"></div>--accent</div>
+        <div class="ds-token"><div class="ds-swatch" style="background:#34C759;"></div>--green</div>
+        <div class="ds-token"><div class="ds-swatch" style="background:#FF3B30;"></div>--red</div>
+        <div class="ds-token"><div class="ds-swatch" style="background:#FF9500;"></div>--orange</div>
+        <div class="ds-token"><div class="ds-swatch" style="background:#AF52DE;"></div>--purple</div>
+        <div class="ds-token"><div class="ds-swatch" style="background:#32ADE6;"></div>--teal</div>
+      </div>
+      <div class="divider"></div>
+      <div class="ds-label">Text</div>
+      <div class="ds-tokens-grid">
+        <div class="ds-token"><div class="ds-swatch" style="background:#0f172a;"></div>--text</div>
+        <div class="ds-token"><div class="ds-swatch" style="background:#475569;"></div>--text2</div>
+        <div class="ds-token"><div class="ds-swatch" style="background:#94a3b8;border:1px solid #ddd;"></div>--muted</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 2. TYPOGRAFIE -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section rise rise-2">
+    <div class="ds-title"><span class="ds-title-num">02</span> Typografie</div>
+    <p class="ds-desc">SF Pro Display na macOS/iOS, Helvetica Neue jinde. Antialiasing zapnutý vždy.</p>
+
+    <div class="card ds-demo">
+      <div style="margin-bottom:20px;">
+        <div class="page-eyebrow">Eyebrow — 11px, 700, 0.12em tracking, uppercase</div>
+        <h1 class="page-title">Page Title — 30px, 800, -0.5px tracking</h1>
+        <p class="page-sub">Subtitle — 15px, regular, var(--text2)</p>
+      </div>
+      <div class="divider"></div>
+      <div class="ds-label">Hierarchie</div>
+      <div class="section-title" style="margin-bottom:8px;">Section Title — 13px, 700, 0.07em, uppercase</div>
+      <p style="font-size:15px;line-height:1.6;color:var(--text);">Body text — 15px, regular, line-height 1.6. Hlavní čtecí text v aplikaci.</p>
+      <p style="font-size:14px;color:var(--text2);margin-top:8px;">Sekundární text — 14px, var(--text2)</p>
+      <p style="font-size:13px;color:var(--muted);margin-top:6px;">Malý / hint text — 13px, var(--muted)</p>
+      <code class="font-mono" style="margin-top:10px;display:block;">Monospace — SF Mono, 13px — pro ID, kódy, hodnoty</code>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 3. KARTY -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">03</span> Karty</div>
+    <p class="ds-desc">Tři úrovně — hlavní card, soft card pro sekce, card-inner pro vnořené bloky.</p>
+
+    <div class="ds-row">
+      <div class="card p-5" style="flex:1;min-width:200px;">
+        <div class="ds-label">.card</div>
+        <p class="text-sm text-muted">Hlavní karta — glassmorphism, silný stín, vnitřní svit nahoře</p>
+      </div>
+      <div class="card-soft p-5" style="flex:1;min-width:200px;">
+        <div class="ds-label">.card-soft</div>
+        <p class="text-sm text-muted">Měkká karta — pro sekce, panely, méně výrazná</p>
+      </div>
+      <div style="flex:1;min-width:200px;" class="card p-5">
+        <div class="card-inner p-4">
+          <div class="ds-label">.card-inner</div>
+          <p class="text-sm text-muted">Vnořený blok uvnitř karty</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 4. TLAČÍTKA -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">04</span> Tlačítka</div>
+    <p class="ds-desc">Pilulkový tvar (border-radius: 100px). Vždy inline-flex s ikonou. Tři velikosti.</p>
+
+    <div class="card ds-demo">
+      <div class="ds-label">Varianty</div>
+      <div class="ds-row">
+        <button class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Primary
+        </button>
+        <button class="btn btn-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+          Secondary
+        </button>
+        <button class="btn btn-green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Green / Odeslat
+        </button>
+        <button class="btn btn-danger">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          Danger
+        </button>
+        <button class="btn btn-purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+          AI
+        </button>
+      </div>
+      <div class="divider"></div>
+      <div class="ds-label">Velikosti</div>
+      <div class="ds-row" style="align-items:flex-end;">
+        <button class="btn btn-primary">Normální</button>
+        <button class="btn btn-primary btn-sm">btn-sm</button>
+        <button class="btn btn-secondary btn-xs">btn-xs</button>
+        <button class="btn btn-secondary" disabled>Disabled</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 5. BADGES + STATUS -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">05</span> Badges &amp; Status</div>
+    <p class="ds-desc">Tónované pozadí z příslušné barvy (12% opacity) + tmavší text téže barvy. Nikdy sytý fill.</p>
+
+    <div class="card ds-demo">
+      <div class="ds-row">
+        <span class="badge badge-nova"><span class="badge-dot dot-nova"></span>Nová</span>
+        <span class="badge badge-reseni"><span class="badge-dot dot-reseni"></span>V řešení</span>
+        <span class="badge badge-vyreseno"><span class="badge-dot dot-vyreseno"></span>Vyřešeno</span>
+        <span class="badge badge-zamitnuto"><span class="badge-dot dot-red"></span>Zamítnuto</span>
+        <span class="badge badge-info"><span class="badge-dot" style="background:var(--teal);"></span>Info</span>
+      </div>
+      <div class="divider"></div>
+      <div class="ds-label">Vlastní chip — vzor</div>
+      <div class="ds-row">
+        <!-- Vzor pro vlastní chip -->
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(175,82,222,0.11);color:#8b3fc1;border-radius:8px;font-size:11px;font-weight:600;">
+          ★ AI
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(52,199,89,0.10);color:#1e8e3e;border-radius:8px;font-size:11px;font-weight:600;">
+          ✓ Auto-reply
+        </span>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(255,149,0,0.10);color:#a35e00;border-radius:8px;font-size:11px;font-weight:600;">
+          ⏰ 2h bez odpovědi
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 6. STATS GRID -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">06</span> Stats Grid</div>
+    <p class="ds-desc">4 čísla v řadě. Na mobilu 2×2. Vždy na začátku stránky pro rychlý přehled.</p>
+
+    <div class="stats-grid">
+      <div class="card stat-card">
+        <div class="stat-label">Celkem</div>
+        <div class="stat-num">142</div>
+        <div class="stat-sub">za celou dobu</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label"><span class="dot dot-nova" style="margin-right:5px;"></span>Nové</div>
+        <div class="stat-num" style="color:var(--orange);">12</div>
+        <div class="stat-sub">čekají na reakci</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label"><span class="dot dot-reseni" style="margin-right:5px;"></span>V řešení</div>
+        <div class="stat-num" style="color:var(--accent);">8</div>
+        <div class="stat-sub">aktivní komunikace</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label"><span class="dot dot-vyreseno" style="margin-right:5px;"></span>Vyřešeno</div>
+        <div class="stat-num" style="color:var(--green);">122</div>
+        <div class="stat-sub">úspěšně uzavřeno</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 7. FORMULÁŘE -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">07</span> Formuláře</div>
+    <p class="ds-desc">Glassmorphism inputy, accent border při focusu, 3px glow. Toggle switch místo checkboxu tam kde jde.</p>
+
+    <div class="card ds-demo" style="max-width:520px;">
+      <div class="form-group">
+        <label class="form-label">Jméno zákazníka</label>
+        <input class="form-input" type="text" placeholder="Jan Novák">
+      </div>
+      <div class="form-group">
+        <label class="form-label">E-mail</label>
+        <input class="form-input" type="email" placeholder="jan@example.cz">
+        <div class="form-hint">Potvrzovací e-mail bude odeslán na tuto adresu</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kategorie</label>
+        <select class="form-select">
+          <option>Nedoručení zásilky</option>
+          <option>Poškozené zboží</option>
+          <option>Vrácení zboží</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Popis problému</label>
+        <textarea class="form-textarea" placeholder="Popište co se stalo…"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Automatické odpovědi</label>
+        <div class="toggle-wrap">
+          <label class="toggle">
+            <input type="checkbox" checked>
+            <div class="toggle-track"><div class="toggle-thumb"></div></div>
+          </label>
+          <span style="font-size:14px;color:var(--text2);">Zákazník dostane automatické potvrzení</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;"><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Odeslat
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 8. ALERTS -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">08</span> Alerts</div>
+    <p class="ds-desc">4 varianty — success, error, warning, info. Vždy s ikonou vlevo.</p>
+
+    <div class="card ds-demo" style="max-width:560px;">
+      <div class="alert alert-success">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Ticket byl úspěšně vyřešen a zákazník byl upozorněn.
+      </div>
+      <div class="alert alert-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Odeslání e-mailu selhalo — zkontroluj SMTP nastavení.
+      </div>
+      <div class="alert alert-warning">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Gemini API klíč není nastaven — AI funkce nejsou dostupné.
+      </div>
+      <div class="alert alert-info" style="margin-bottom:0;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Další e-maily budou zkontrolovány za 5 minut.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 9. INFO ROWS (detail view) -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">09</span> Info Rows</div>
+    <p class="ds-desc">Pro detail záznamů — klíč vlevo (160px), hodnota vpravo. Subtilní dělicí čára.</p>
+
+    <div class="card" style="max-width:560px;">
+      <div class="info-grid">
+        <div class="info-row">
+          <span class="info-key">Ticket ID</span>
+          <span class="info-val font-mono" style="color:var(--accent);">RK-0142</span>
+        </div>
+        <div class="info-row">
+          <span class="info-key">Zákazník</span>
+          <span class="info-val">Jan Novák — jan@example.cz</span>
+        </div>
+        <div class="info-row">
+          <span class="info-key">Kategorie</span>
+          <span class="info-val"><span class="badge badge-nova">Nedoručení</span></span>
+        </div>
+        <div class="info-row">
+          <span class="info-key">Status</span>
+          <span class="info-val"><span class="badge badge-reseni"><span class="badge-dot dot-reseni"></span>V řešení</span></span>
+        </div>
+        <div class="info-row">
+          <span class="info-key">Přijato</span>
+          <span class="info-val text-muted">20.03.2026 10:42</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 10. LIST ROWS -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">10</span> List Rows</div>
+    <p class="ds-desc">Řádky přehledu — hover efekt, lehký rise při najetí. Vždy odkaz (a href).</p>
+
+    <div class="list-items">
+      <a href="#" class="list-row card">
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;color:var(--text);">Jan Novák — Nedorazila mi objednávka</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px;">jan@example.cz · 20.03.2026 09:15</div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+            <span class="font-mono text-muted" style="font-size:11px;background:rgba(148,163,184,0.1);padding:2px 7px;border-radius:6px;">RK-0142</span>
+            <span style="padding:2px 7px;background:rgba(255,149,0,0.1);color:#c47900;border-radius:7px;font-size:11px;font-weight:600;">Nedoručení</span>
+            <span style="padding:2px 7px;background:rgba(0,122,255,0.08);color:#0062cc;border-radius:7px;font-size:11px;font-weight:600;">#20224</span>
+            <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(52,199,89,0.10);color:var(--green);border-radius:7px;font-size:11px;font-weight:600;">✓ Auto-reply</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+          <span class="badge badge-nova"><span class="badge-dot dot-nova"></span>Nová</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </a>
+
+      <a href="#" class="list-row card">
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;color:var(--text);">Marie Procházková — Poškozené zboží při doručení</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px;">marie@example.cz · 19.03.2026 14:30</div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+            <span class="font-mono text-muted" style="font-size:11px;background:rgba(148,163,184,0.1);padding:2px 7px;border-radius:6px;">RK-0141</span>
+            <span style="padding:2px 7px;background:rgba(255,59,48,0.09);color:#c9302c;border-radius:7px;font-size:11px;font-weight:600;">⚠ Kritická</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+          <span class="badge badge-reseni"><span class="badge-dot dot-reseni"></span>V řešení</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 11. TOOLTIPS -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">11</span> Tooltips</div>
+    <p class="ds-desc">Přidej <code class="font-mono">data-tip="text"</code> na jakýkoliv element. Čistý CSS, žádný JS.</p>
+
+    <div class="card ds-demo">
+      <div class="ds-row">
+        <button class="btn btn-secondary" data-tip="Toto je tooltip nahoře (default)">Najeď na mě ↑</button>
+        <button class="btn btn-secondary" data-tip-bottom="" data-tip="Tooltip dole">Dole ↓</button>
+        <span class="badge badge-nova" data-tip="Ticket čeká na první odpověď od admina" style="cursor:default;">Nová (?)</span>
+        <button class="btn btn-primary" data-tip="Spustí AI analýzu všech ticketů — zabere ~30 sekund">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+          AI Analýza
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 12. PROGRESS BAR + LOADING -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">12</span> Loading stavy</div>
+    <p class="ds-desc">Spinner pro API volání, progress bar pro kroky, dot-pulse pro čekání na AI.</p>
+
+    <div class="card ds-demo">
+      <div class="ds-row" style="align-items:center;">
+        <div class="spinner"></div>
+        <span class="text-sm text-muted">Načítám…</span>
+
+        <div style="display:flex;align-items:center;gap:8px;margin-left:24px;">
+          <div class="dot-pulse"><span></span></div>
+          <span class="text-sm text-muted">AI přemýšlí…</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="ds-label">Progress bar — barvy z tokenů</div>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:400px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px;"><span>Vyřešeno</span><span>86%</span></div>
+          <div class="prog-track"><div class="prog-fill" style="width:86%;background:var(--green);"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px;"><span>V řešení</span><span>42%</span></div>
+          <div class="prog-track"><div class="prog-fill" style="width:42%;background:var(--accent);"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px;"><span>SLA splněno</span><span>61%</span></div>
+          <div class="prog-track"><div class="prog-fill" style="width:61%;background:var(--orange);"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 13. EMPTY STATE -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">13</span> Empty state</div>
+    <p class="ds-desc">Když seznam neobsahuje žádné položky. Vždy s ikonou, nadpisem a popisem.</p>
+
+    <div class="card">
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <h3>Žádné tickety</h3>
+        <p>Zatím tu nic není — tickety se zobrazí jakmile zákazníci napíší</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 14. ANIMACE -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">14</span> Animace</div>
+    <p class="ds-desc">Rise-in pro vstup elementů při načtení stránky. Přidej <code class="font-mono">.rise</code> + <code class="font-mono">.rise-1</code>...<code class="font-mono">.rise-4</code> pro kaskádové zpoždění. Respektuje <code class="font-mono">prefers-reduced-motion</code>.</p>
+
+    <div class="ds-row">
+      <div class="card rise p-5" style="flex:1;text-align:center;">
+        <div class="text-sm text-muted">.rise</div>
+        <div style="font-weight:700;margin-top:4px;">0ms delay</div>
+      </div>
+      <div class="card rise rise-1 p-5" style="flex:1;text-align:center;">
+        <div class="text-sm text-muted">.rise.rise-1</div>
+        <div style="font-weight:700;margin-top:4px;">40ms delay</div>
+      </div>
+      <div class="card rise rise-2 p-5" style="flex:1;text-align:center;">
+        <div class="text-sm text-muted">.rise.rise-2</div>
+        <div style="font-weight:700;margin-top:4px;">80ms delay</div>
+      </div>
+      <div class="card rise rise-3 p-5" style="flex:1;text-align:center;">
+        <div class="text-sm text-muted">.rise.rise-3</div>
+        <div style="font-weight:700;margin-top:4px;">120ms delay</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- 15. VZOR CELÉ STRÁNKY -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div class="ds-section">
+    <div class="ds-title"><span class="ds-title-num">15</span> Vzor celé stránky</div>
+    <p class="ds-desc">Standardní struktura — zkopíruj a uprav pro každý nový projekt.</p>
+
+    <div class="card ds-demo">
+      <pre class="font-mono" style="font-size:12px;line-height:1.8;color:var(--text2);white-space:pre-wrap;">
+&lt;!DOCTYPE html&gt;
+&lt;html lang="cs"&gt;
+&lt;head&gt;
+  &lt;meta charset="UTF-8"&gt;
+  &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;
+  &lt;title&gt;Název stránky — Projekt&lt;/title&gt;
+  &lt;!-- Sem zkopíruj celý blok CSS z tohoto souboru --&gt;
+&lt;/head&gt;
+&lt;body&gt;
+
+  &lt;nav class="navbar"&gt;
+    &lt;div class="navbar-brand"&gt;...&lt;/div&gt;
+    &lt;div class="navbar-sep"&gt;&lt;/div&gt;
+    &lt;a href="/" class="nav-link active"&gt;Přehled&lt;/a&gt;
+    &lt;div class="nav-spacer"&gt;&lt;/div&gt;
+    &lt;a href="/logout" class="nav-link nav-logout"&gt;Odhlásit&lt;/a&gt;
+  &lt;/nav&gt;
+
+  &lt;div class="page"&gt;
+
+    &lt;div class="page-head rise"&gt;
+      &lt;div class="page-eyebrow"&gt;Sekce&lt;/div&gt;
+      &lt;h1 class="page-title"&gt;Název stránky&lt;/h1&gt;
+      &lt;p class="page-sub"&gt;Krátký popis co tato stránka dělá&lt;/p&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Stats --&gt;
+    &lt;div class="stats-grid rise rise-1"&gt;
+      &lt;div class="card stat-card"&gt;...&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Obsah --&gt;
+    &lt;div class="card rise rise-2"&gt;
+      &lt;div class="p-6"&gt;
+        ...obsah...
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+  &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+      </pre>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="text-align:center;padding:40px 0 20px;color:var(--muted);font-size:13px;">
+    erem design system · vanilla CSS · žádné závislosti · zkopíruj a použij
+  </div>
+
+</div>
+</body>
+</html>
