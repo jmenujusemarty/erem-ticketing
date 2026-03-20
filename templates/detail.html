@@ -1,0 +1,632 @@
+{% extends "base.html" %}
+{% block title %}{{ complaint['ticket_id'] }} — Detail{% endblock %}
+
+{% block head %}
+<style>
+  .tpl-dropdown { position: relative; display: inline-block; }
+  .tpl-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 50;
+    min-width: 240px;
+    background: rgba(255,255,255,0.96);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .tpl-menu.open { display: block; }
+  .tpl-item {
+    display: block;
+    padding: 11px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    border-bottom: 1px solid rgba(15,23,42,0.05);
+    transition: background 0.12s;
+  }
+  .tpl-item:last-child { border-bottom: none; }
+  .tpl-item:hover { background: rgba(0,122,255,0.07); color: var(--accent); }
+  .tpl-empty { padding: 14px 16px; font-size: 13px; color: var(--muted); text-align: center; }
+  /* ── Rich-text editor ── */
+  #reply_toolbar { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+  .reply-tb-btn {
+    height: 32px; border: 1px solid rgba(15,23,42,0.12); border-radius: 8px;
+    background: rgba(255,255,255,0.85); cursor: pointer; font-size: 13px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 10px; transition: background 0.12s, border-color 0.12s;
+  }
+  .reply-tb-btn:hover { background: rgba(0,122,255,0.08); border-color: var(--accent); }
+  .reply-tb-btn.sq { width: 32px; padding: 0; }
+  #reply_editor {
+    min-height: 140px; padding: 12px 14px;
+    border: 1px solid rgba(15,23,42,0.12); border-radius: var(--r-in);
+    background: rgba(255,255,255,0.8); font-size: 15px; font-family: inherit;
+    outline: none; line-height: 1.7; transition: border 0.15s;
+    color: var(--text);
+  }
+  #reply_editor:focus { border-color: var(--accent); }
+  #reply_editor a { color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="page-sm">
+
+  <!-- BACK + HEADER -->
+  <div class="rise mb-6">
+    <a href="/" class="btn btn-secondary btn-sm" style="margin-bottom:20px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Zpět
+    </a>
+    <div class="page-eyebrow" style="margin-top:8px;">Detail ticketu</div>
+    <h1 class="page-title">{{ complaint['ticket_id'] }}</h1>
+
+    {% set sl = complaint['status']|lower %}
+    {% if 'nová' in sl or 'nova' in sl %}
+      {% set badge_cls = 'badge-nova' %}{% set dot_cls = 'dot-nova' %}
+    {% elif 'vyřešen' in sl or 'vyreseno' in sl %}
+      {% set badge_cls = 'badge-vyreseno' %}{% set dot_cls = 'dot-vyreseno' %}
+    {% elif 'řešen' in sl or 'resen' in sl %}
+      {% set badge_cls = 'badge-reseni' %}{% set dot_cls = 'dot-reseni' %}
+    {% elif 'zamítn' in sl or 'zamitn' in sl %}
+      {% set badge_cls = 'badge-zamitnuto' %}{% set dot_cls = 'dot-zamitnuto' %}
+    {% else %}
+      {% set badge_cls = 'badge-reseni' %}{% set dot_cls = 'dot-reseni' %}
+    {% endif %}
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span class="badge {{ badge_cls }}" style="font-size:13px;padding:6px 12px;">
+        <span class="badge-dot {{ dot_cls }}"></span>
+        {{ complaint['status'] }}
+      </span>
+      {% if complaint['category'] %}
+      <span style="display:inline-flex;align-items:center;padding:4px 10px;background:rgba(50,173,230,0.1);color:#1a8aad;border-radius:8px;font-size:12px;font-weight:600;">
+        {{ complaint['category'] }}
+      </span>
+      {% endif %}
+      {% set prio = complaint['priority'] or 'Střední' %}
+      {% if prio == 'Kritická' %}
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:rgba(255,59,48,0.12);color:var(--red);border-radius:8px;font-size:12px;font-weight:700;">
+        ⚠ Kritická
+      </span>
+      {% elif prio == 'Vysoká' %}
+      <span style="display:inline-flex;align-items:center;padding:4px 10px;background:rgba(255,149,0,0.12);color:var(--orange);border-radius:8px;font-size:12px;font-weight:700;">
+        Vysoká priorita
+      </span>
+      {% endif %}
+      {% if complaint['assigned_to'] %}
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(175,82,222,0.1);color:var(--purple);border-radius:8px;font-size:12px;font-weight:600;" data-tip="Přiřazeno: {{ complaint['assigned_to'] }}">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        {{ complaint['assigned_to'] }}
+      </span>
+      {% endif %}
+      {% if complaint['status'] == 'Spam' %}
+      <form method="POST" action="/unmark_spam/{{ complaint['ticket_id'] }}" style="margin:0;">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary btn-sm" style="font-size:12px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+          Vrátit z&nbsp;spamu
+        </button>
+      </form>
+      {% else %}
+      <form method="POST" action="/mark_spam/{{ complaint['ticket_id'] }}" style="margin:0;" onsubmit="return confirm('Označit jako spam a přesunout?')">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm" style="font-size:12px;background:rgba(255,59,48,0.09);color:#FF3B30;border:1px solid rgba(255,59,48,0.18);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          Označit jako spam
+        </button>
+      </form>
+      <form method="POST" action="/resend_confirmation/{{ complaint['ticket_id'] }}" style="margin:0;" onsubmit="return confirm('Odeslat potvrzovací e-mail znovu?')">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary btn-sm" style="font-size:12px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Poslat potvrzení
+        </button>
+      </form>
+      {% endif %}
+      <form method="POST" action="/delete_ticket/{{ complaint['ticket_id'] }}" style="margin:0;" id="form-delete-ticket">
+        <button type="button" class="btn btn-sm" data-tip="Trvale smaže ticket včetně celé konverzace"
+                onclick="if(confirm('Opravdu smazat ticket {{ complaint['ticket_id'] }}? Tato akce je nevratná.')) document.getElementById('form-delete-ticket').submit();"
+                style="font-size:12px;background:rgba(255,59,48,0.06);color:#FF3B30;border:1px solid rgba(255,59,48,0.15);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+          Smazat ticket
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- FLASH -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'error' }} rise">
+          {% if category == 'success' %}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          {% else %}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {% endif %}
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- INFO CARD -->
+  <div class="section-title rise rise-1">Základní informace</div>
+  <div class="card mb-6 rise rise-1" style="overflow:hidden;">
+    <div class="info-grid">
+      <div class="info-row">
+        <div class="info-key">Číslo ticketu</div>
+        <div class="info-val font-mono text-accent">{{ complaint['ticket_id'] }}</div>
+      </div>
+      <div class="info-row">
+        <div class="info-key">Datum přijetí</div>
+        <div class="info-val">{{ complaint['date'] }}</div>
+      </div>
+      <div class="info-row">
+        <div class="info-key">E-mail zákazníka</div>
+        <div class="info-val">
+          <a href="mailto:{{ complaint['customer_email'] }}" style="color:var(--accent);text-decoration:none;">{{ complaint['customer_email'] }}</a>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-key">Předmět</div>
+        <div class="info-val">{{ complaint['subject'] }}</div>
+      </div>
+      {% if complaint['order_number'] %}
+      <div class="info-row">
+        <div class="info-key">Číslo objednávky</div>
+        <div class="info-val font-mono text-accent">#{{ complaint['order_number'] }}</div>
+      </div>
+      {% endif %}
+      {% if complaint['problem_summary'] %}
+      <div class="info-row">
+        <div class="info-key">AI shrnutí</div>
+        <div class="info-val" style="color:var(--text2);">{{ complaint['problem_summary'] }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- CONVERSATION TIMELINE -->
+  <div class="flex items-center justify-between rise rise-1" style="margin-bottom:12px;">
+    <div class="section-title" style="margin-bottom:0;">Konverzace</div>
+    <button id="btn-sync" onclick="syncHistory()" class="btn btn-secondary btn-sm">
+      <svg id="sync-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      <div class="ai-spinner" id="sync-spinner"></div>
+      <span id="sync-label">Synchronizovat e-maily</span>
+    </button>
+  </div>
+  <div id="sync-result" style="display:none;margin-bottom:10px;"></div>
+  {% set conv_list = conversation | list %}
+  {% set total_msgs = conv_list | length %}
+  {% set show_latest = 3 %}
+  {% set older_count = [total_msgs - show_latest, 0] | max %}
+
+  <!-- Tlačítko starší zprávy — nahoře -->
+  {% if older_count > 0 %}
+  <div style="margin-bottom:8px;">
+    <button id="btn-show-older" onclick="toggleOlder()" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;gap:8px;">
+      <svg id="older-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;"><polyline points="6 9 12 15 18 9"/></svg>
+      <span id="older-label">Zobrazit starší zprávy ({{ older_count }})</span>
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- Chronologicky: starší nahoře (skryté), nejnovější dole u formuláře -->
+  <div class="rise rise-1" style="display:flex;flex-direction:column;gap:12px;margin-bottom:28px;" id="conv-wrap">
+
+    {% for msg in conv_list %}
+    {% set is_older = loop.index <= older_count %}
+
+    {% if msg.type == 'customer' %}
+    <!-- Zákazník — vlevo -->
+    <div class="conv-msg{% if is_older %} conv-older{% endif %}"{% if is_older %} style="display:none;"{% endif %}>
+    <div style="display:flex;gap:10px;align-items:flex-start;">
+      <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#e0e7ff,#c7d2fe);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#4f46e5;flex-shrink:0;">
+        {{ (msg.author[0]|upper) if msg.author else '?' }}
+      </div>
+      <div style="max-width:78%;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500;">{{ msg.author }} · {{ msg.time }}</div>
+        <div style="background:rgba(255,255,255,0.9);border:1px solid var(--border);border-radius:0 16px 16px 16px;padding:12px 15px;font-size:13.5px;line-height:1.7;color:var(--text2);white-space:pre-wrap;box-shadow:0 1px 3px rgba(0,0,0,0.05);">{{ msg.text }}</div>
+      </div>
+    </div>
+    </div>
+
+    {% elif msg.type == 'reply' %}
+    <!-- Naše odpověď — vpravo -->
+    <div class="conv-msg{% if is_older %} conv-older{% endif %}"{% if is_older %} style="display:none;"{% endif %}>
+    <div style="display:flex;gap:10px;align-items:flex-start;flex-direction:row-reverse;">
+      <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#007AFF,#0055d4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0;">e</div>
+      <div style="max-width:78%;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500;text-align:right;">{{ msg.author }} · {{ msg.time }}</div>
+        <div style="background:linear-gradient(135deg,#007AFF,#0066e0);border-radius:16px 0 16px 16px;padding:12px 15px;font-size:13.5px;line-height:1.7;color:#fff;white-space:pre-wrap;box-shadow:0 2px 8px rgba(0,122,255,0.25);">{{ msg.text }}</div>
+      </div>
+    </div>
+    </div>
+
+    {% elif msg.type == 'note' %}
+    <!-- Interní poznámka — uprostřed, zákazník nevidí -->
+    <div class="conv-msg{% if is_older %} conv-older{% endif %}"{% if is_older %} style="display:none;"{% endif %}>
+    <div style="display:flex;justify-content:center;">
+      <div style="max-width:90%;background:rgba(142,142,147,0.07);border:1px dashed rgba(142,142,147,0.3);border-radius:10px;padding:10px 16px;">
+        <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-bottom:4px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span style="font-weight:600;">Interní poznámka</span>
+          <span style="background:rgba(142,142,147,0.15);padding:1px 6px;border-radius:4px;font-size:10px;letter-spacing:0.04em;">POUZE INTERNÍ — zákazník nevidí</span>
+          <span>· {{ msg.time }}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.5;">{{ msg.text }}</div>
+      </div>
+    </div>
+    </div>
+    {% endif %}
+
+    {% endfor %}
+  </div>
+
+  <!-- AI SUGGEST -->
+  <div class="section-title rise rise-2">AI odpověď</div>
+  <div class="card p-5 mb-4 rise rise-2">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);">Navrhnout odpověď — Gemini AI</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:3px;">AI analyzuje ticket a navrhne profesionální odpověď v češtině</div>
+      </div>
+      <button id="btn-suggest" onclick="suggestReply()" class="btn btn-secondary btn-sm">
+        <svg id="suggest-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+        </svg>
+        <div class="ai-spinner" id="ai-spinner"></div>
+        <span id="suggest-label">Navrhnout AI</span>
+      </button>
+    </div>
+    <div id="ai-error" style="display:none;" class="alert alert-error">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="ai-error-text"></span>
+    </div>
+  </div>
+
+  <!-- SEND REPLY -->
+  <div class="section-title rise rise-3">Odpověď zákazníkovi</div>
+  <div class="card p-5 mb-6 rise rise-3">
+    <form method="POST" action="/send_reply/{{ complaint['ticket_id'] }}" onsubmit="syncReplyHidden()">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="reply_html" id="reply_html_hidden">
+      <div class="form-group">
+        <div class="flex items-center justify-between" style="margin-bottom:7px;">
+          <label class="form-label" style="margin-bottom:0;">Zpráva pro {{ complaint['customer_email'] }}</label>
+          <div class="tpl-dropdown" id="tpl-dropdown">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleTplMenu()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Šablona
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="tpl-menu" id="tpl-menu">
+              <div id="tpl-list"><div class="tpl-empty">Načítám…</div></div>
+            </div>
+          </div>
+        </div>
+        <!-- Toolbar -->
+        <div id="reply_toolbar">
+          <button type="button" class="reply-tb-btn sq" onclick="execReply('bold')" title="Tučně"><b>B</b></button>
+          <button type="button" class="reply-tb-btn sq" onclick="execReply('italic')" title="Kurzíva"><i>I</i></button>
+          <button type="button" class="reply-tb-btn sq" onclick="execReply('underline')" title="Podtržení"><u>U</u></button>
+          <button type="button" class="reply-tb-btn" onclick="insertReplyLink()" title="Odkaz" style="color:var(--accent);">🔗 Odkaz</button>
+          <button type="button" class="reply-tb-btn" onclick="insertReplyColor()" title="Barva">🎨 Barva</button>
+          <button type="button" class="reply-tb-btn" onclick="clearReplyFormat()" title="Smazat formátování" style="color:var(--muted);">✕ Reset</button>
+        </div>
+        <!-- Editable div -->
+        <div id="reply_editor" contenteditable="true" role="textbox" aria-multiline="true"
+          data-placeholder="Napište odpověď, nebo použijte AI či šablonu výše…"><br><br>{{ admin_signature | safe }}</div>
+      </div>
+      <div class="flex gap-2" style="flex-wrap:wrap;align-items:center;margin-top:14px;">
+        <button type="submit" class="btn btn-green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          Odeslat zákazníkovi
+        </button>
+        <span style="font-size:12px;color:var(--muted);">Odpověď se uloží do poznámek</span>
+      </div>
+    </form>
+  </div>
+
+  <!-- UPDATE STATUS -->
+  <div class="section-title rise rise-3">Aktualizovat ticket</div>
+  <div class="card p-5 rise rise-3">
+    <form method="POST" action="/update_status/{{ complaint['ticket_id'] }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="form-group">
+          <label class="form-label" for="status">Stav ticketu</label>
+          <select class="form-select" name="status" id="status" required>
+            <option value="Nová"      {% if complaint['status'] == 'Nová' %}selected{% endif %}>Nová</option>
+            <option value="V řešení"  {% if complaint['status'] == 'V řešení' %}selected{% endif %}>V řešení</option>
+            <option value="Vyřešeno"  {% if complaint['status'] == 'Vyřešeno' %}selected{% endif %}>Vyřešeno</option>
+            <option value="Zamítnuto" {% if complaint['status'] == 'Zamítnuto' %}selected{% endif %}>Zamítnuto</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="priority">Priorita</label>
+          <select class="form-select" name="priority" id="priority">
+            {% set cur_prio = complaint['priority'] or 'Střední' %}
+            <option value="Nízká"    {% if cur_prio == 'Nízká' %}selected{% endif %}>Nízká</option>
+            <option value="Střední"  {% if cur_prio == 'Střední' %}selected{% endif %}>Střední</option>
+            <option value="Vysoká"   {% if cur_prio == 'Vysoká' %}selected{% endif %}>Vysoká</option>
+            <option value="Kritická" {% if cur_prio == 'Kritická' %}selected{% endif %}>⚠ Kritická</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="category">Kategorie problému</label>
+        <select class="form-select" name="category" id="category">
+          <option value="">— Bez kategorie —</option>
+          {% for cat in ['Nedoručení', 'Poškozené zboží', 'Špatný produkt', 'Vrácení peněz', 'Ostatní'] %}
+          <option value="{{ cat }}" {% if complaint['category'] == cat %}selected{% endif %}>{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="notes" style="display:flex;align-items:center;gap:6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Interní poznámka
+          <span style="font-size:11px;font-weight:500;color:var(--muted);background:rgba(142,142,147,0.12);padding:1px 6px;border-radius:4px;">zákazník nevidí</span>
+        </label>
+        <textarea class="form-textarea" name="notes" id="notes"
+          placeholder="Interní poznámka — pouze pro tým, zákazník ji neuvidí…" rows="3" style="min-height:80px;"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Uložit změny
+      </button>
+    </form>
+  </div>
+
+  <!-- PŘIŘAZENÍ TICKETU -->
+  {% if admin_list %}
+  <div class="section-title rise rise-4" style="margin-top:28px;">Přiřadit ticket</div>
+  <div class="card p-5 rise rise-4">
+    <form method="POST" action="/assign_ticket/{{ complaint['ticket_id'] }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" for="assigned_to">Přiřadit adminovi</label>
+        <select class="form-select" name="assigned_to" id="assigned_to">
+          <option value="">— Nepřiřazeno —</option>
+          {% for admin_email in admin_list %}
+          <option value="{{ admin_email }}" {% if complaint['assigned_to'] == admin_email %}selected{% endif %}>{{ admin_email }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Přiřadit
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- PŘEDCHOZÍ PŘÍPADY ZÁKAZNÍKA -->
+  {% if prev_tickets %}
+  <div class="section-title rise rise-4" style="margin-top:28px;">Předchozí případy zákazníka</div>
+  <div class="card rise rise-4" style="overflow:hidden;">
+    {% for pt in prev_tickets %}
+    {% set ptsl = pt['status']|lower %}
+    {% if 'nová' in ptsl or 'nova' in ptsl %}
+      {% set pt_badge = 'badge-nova' %}{% set pt_dot = 'dot-nova' %}
+    {% elif 'vyřešen' in ptsl or 'vyreseno' in ptsl %}
+      {% set pt_badge = 'badge-vyreseno' %}{% set pt_dot = 'dot-vyreseno' %}
+    {% elif 'řešen' in ptsl or 'resen' in ptsl %}
+      {% set pt_badge = 'badge-reseni' %}{% set pt_dot = 'dot-reseni' %}
+    {% else %}
+      {% set pt_badge = 'badge-reseni' %}{% set pt_dot = 'dot-reseni' %}
+    {% endif %}
+    <a href="/complaint/{{ pt['ticket_id'] }}" style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(15,23,42,0.055);text-decoration:none;color:var(--text);transition:background 0.12s;" onmouseover="this.style.background='rgba(0,122,255,0.025)'" onmouseout="this.style.background=''">
+      <span style="font-size:11px;font-weight:700;font-family:'SF Mono',monospace;color:var(--accent);white-space:nowrap;">{{ pt['ticket_id'] }}</span>
+      <div style="min-width:0;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ pt['subject'][:55] }}{% if pt['subject']|length > 55 %}…{% endif %}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px;">{{ pt['date'][:10] if pt['date'] else '' }}</div>
+      </div>
+      <span class="badge {{ pt_badge }}" style="font-size:11px;padding:3px 8px;white-space:nowrap;">
+        <span class="badge-dot {{ pt_dot }}"></span>{{ pt['status'] }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+// CSRF token pro AJAX requesty
+const CSRF_TOKEN = '{{ csrf_token() }}';
+
+// ── Starší zprávy ──────────────────────────────────────────────────────────
+let _olderVisible = false;
+function toggleOlder() {
+  _olderVisible = !_olderVisible;
+  document.querySelectorAll('.conv-older').forEach(el => {
+    el.style.display = _olderVisible ? '' : 'none';
+  });
+  const btn     = document.getElementById('btn-show-older');
+  const label   = document.getElementById('older-label');
+  const chevron = document.getElementById('older-chevron');
+  if (!btn) return;
+  const count = document.querySelectorAll('.conv-older').length;
+  label.textContent   = _olderVisible ? 'Skrýt starší zprávy' : `Zobrazit starší zprávy (${count})`;
+  chevron.style.transform = _olderVisible ? 'rotate(180deg)' : '';
+}
+const _csrfHeaders = { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN };
+
+async function syncHistory() {
+  const btn    = document.getElementById('btn-sync');
+  const spinner= document.getElementById('sync-spinner');
+  const icon   = document.getElementById('sync-icon');
+  const label  = document.getElementById('sync-label');
+  const result = document.getElementById('sync-result');
+
+  btn.disabled = true;
+  spinner.classList.add('visible');
+  icon.style.display = 'none';
+  label.textContent = 'Synchronizuji…';
+  result.style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/sync_history/{{ complaint["ticket_id"] }}', { method: 'POST', headers: _csrfHeaders });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      result.innerHTML = `<div class="alert alert-error">${data.error || 'Chyba synchronizace'}</div>`;
+    } else {
+      result.innerHTML = `<div class="alert alert-success">${data.message}${data.synced > 0 ? ' — stránka se obnoví' : ''}</div>`;
+      if (data.synced > 0) setTimeout(() => location.reload(), 1400);
+    }
+    result.style.display = 'block';
+  } catch(err) {
+    result.innerHTML = `<div class="alert alert-error">Síťová chyba: ${err.message}</div>`;
+    result.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('visible');
+    icon.style.display = '';
+    label.textContent = 'Synchronizovat e-maily';
+  }
+}
+
+// ── Rich-text editor pro odpověď ──────────────────────────────────────
+function syncReplyHidden() {
+  document.getElementById('reply_html_hidden').value =
+    document.getElementById('reply_editor').innerHTML;
+}
+function execReply(cmd) {
+  document.getElementById('reply_editor').focus();
+  document.execCommand(cmd, false, null);
+  syncReplyHidden();
+}
+function insertReplyLink() {
+  const url = prompt('URL odkazu:', 'https://');
+  if (!url) return;
+  if (!url.match(/^https?:\/\//i)) {
+    alert('Pouze HTTP nebo HTTPS URL jsou povoleny.');
+    return;
+  }
+  const text = prompt('Text odkazu (Enter = použij URL):', '') || url;
+  document.getElementById('reply_editor').focus();
+  document.execCommand('insertHTML', false,
+    `<a href="${url}" style="color:#007AFF;text-decoration:none;">${text}</a>`);
+  syncReplyHidden();
+}
+function insertReplyColor() {
+  const color = prompt('Barva textu (hex nebo název, např. #FF3B30):', '#007AFF');
+  if (!color) return;
+  document.getElementById('reply_editor').focus();
+  document.execCommand('foreColor', false, color);
+  syncReplyHidden();
+}
+function clearReplyFormat() {
+  document.getElementById('reply_editor').focus();
+  document.execCommand('removeFormat', false, null);
+  syncReplyHidden();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  syncReplyHidden();
+  const ed = document.getElementById('reply_editor');
+  ed.addEventListener('focus', () => ed.style.borderColor = 'var(--accent)');
+  ed.addEventListener('blur',  () => { ed.style.borderColor = 'rgba(15,23,42,0.12)'; syncReplyHidden(); });
+  ed.addEventListener('input', syncReplyHidden);
+  // placeholder simulace
+  ed.addEventListener('focus', () => { if (ed.innerHTML === ed.dataset.placeholder) ed.innerHTML = ''; });
+});
+
+// ── AI návrh ───────────────────────────────────────────────────────────
+async function suggestReply() {
+  const btn     = document.getElementById('btn-suggest');
+  const spinner = document.getElementById('ai-spinner');
+  const icon    = document.getElementById('suggest-icon');
+  const label   = document.getElementById('suggest-label');
+  const errEl   = document.getElementById('ai-error');
+  const errTxt  = document.getElementById('ai-error-text');
+  const editor  = document.getElementById('reply_editor');
+
+  btn.disabled = true;
+  spinner.classList.add('visible');
+  icon.style.display = 'none';
+  label.textContent = 'Přemýšlím…';
+  errEl.style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/suggest_reply/{{ complaint["ticket_id"] }}', {
+      method: 'POST',
+      headers: _csrfHeaders
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || 'Neznámá chyba');
+    const sig = {{ admin_signature | tojson }};
+    const text = data.suggestion.trimEnd();
+    // Vlož jako HTML (odřádkování → <br>) a vždy připoj podpis
+    const bodyHtml = text.split('\n').join('<br>');
+    editor.innerHTML = bodyHtml + '<br><br>' + sig;
+    syncReplyHidden();
+    editor.focus();
+    editor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch(err) {
+    errTxt.textContent = err.message;
+    errEl.style.display = 'flex';
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('visible');
+    icon.style.display = '';
+    label.textContent = 'Navrhnout AI';
+  }
+}
+
+// ── Šablony ────────────────────────────────────────────────────────────
+let tplLoaded = false;
+async function toggleTplMenu() {
+  const menu = document.getElementById('tpl-menu');
+  menu.classList.toggle('open');
+  if (!tplLoaded && menu.classList.contains('open')) {
+    tplLoaded = true;
+    try {
+      const resp = await fetch('/api/templates');
+      const templates = await resp.json();
+      const list = document.getElementById('tpl-list');
+      if (templates.length === 0) {
+        list.innerHTML = '<div class="tpl-empty">Žádné šablony — přidej je v Nastavení</div>';
+      } else {
+        list.innerHTML = templates.map(t =>
+          `<div class="tpl-item" onclick="insertTemplate(${JSON.stringify(t.body)})">${t.name}</div>`
+        ).join('');
+      }
+    } catch(e) {
+      document.getElementById('tpl-list').innerHTML = '<div class="tpl-empty">Chyba načítání</div>';
+    }
+  }
+}
+
+function insertTemplate(body) {
+  const editor = document.getElementById('reply_editor');
+  // body je plain text ze šablony → převeď na HTML
+  editor.innerHTML = body.split('\n').map(l => l === '' ? '<br>' : l).join('<br>');
+  syncReplyHidden();
+  document.getElementById('tpl-menu').classList.remove('open');
+  editor.focus();
+}
+
+document.addEventListener('click', e => {
+  const dd = document.getElementById('tpl-dropdown');
+  if (dd && !dd.contains(e.target)) {
+    document.getElementById('tpl-menu').classList.remove('open');
+  }
+});
+</script>
+{% endblock %}

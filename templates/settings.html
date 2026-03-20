@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+{% block title %}Nastavení — erem ticketing{% endblock %}
+
+{% block body %}
+<div class="page-sm">
+
+  <div class="page-head rise">
+    <div class="page-eyebrow">Konfigurace</div>
+    <h1 class="page-title">Nastavení</h1>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'error' }} rise">
+          {% if category == 'success' %}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          {% else %}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {% endif %}
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form method="POST">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+    <!-- AUTO-REPLY -->
+    <div class="section-title rise rise-1">Automatická odpověď</div>
+    <div class="card p-5 mb-6 rise rise-1">
+
+      <div class="form-group">
+        <div class="toggle-wrap">
+          <!-- Skrytý checkbox pro form submit -->
+          <input type="hidden" name="auto_reply_enabled" id="auto_reply_hidden"
+            value="{{ '1' if config.auto_reply_enabled else '0' }}">
+          <!-- Vizuální toggle ovládaný JS -->
+          <div class="toggle" id="toggle-visual" onclick="toggleAutoReply()"
+               style="cursor:pointer;"
+               data-on="{{ '1' if config.auto_reply_enabled else '0' }}">
+            <div class="toggle-track" id="toggle-track"
+                 style="background:{{ 'var(--green)' if config.auto_reply_enabled else '#e0e0e5' }};">
+              <div class="toggle-thumb"
+                   style="transform:{{ 'translateX(20px)' if config.auto_reply_enabled else 'none' }};"></div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:15px;font-weight:600;color:var(--text);">Automatické potvrzení přijetí</div>
+            <div style="font-size:13px;color:var(--text2);margin-top:2px;">Každá nový ticket dostane automatický e-mail s číslem tiketu</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="form-group">
+        <label class="form-label">Podpis správce</label>
+        <input type="hidden" name="admin_signature" id="admin_signature_hidden">
+        <div id="sig_toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
+          <button type="button" onclick="execSig('bold')" title="Tučně" style="width:32px;height:32px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;"><b>B</b></button>
+          <button type="button" onclick="execSig('italic')" title="Kurzíva" style="width:32px;height:32px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;"><i>I</i></button>
+          <button type="button" onclick="execSig('underline')" title="Podtržení" style="width:32px;height:32px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;"><u>U</u></button>
+          <button type="button" onclick="insertSigLink()" title="Odkaz" style="height:32px;padding:0 10px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:12px;color:var(--accent);">🔗 Odkaz</button>
+          <button type="button" onclick="insertSigColor()" title="Barva textu" style="height:32px;padding:0 10px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:12px;">🎨 Barva</button>
+          <button type="button" onclick="clearSigFormat()" title="Vymazat formátování" style="height:32px;padding:0 10px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:12px;color:var(--muted);">✕ Reset</button>
+        </div>
+        <div id="sig_editor" contenteditable="true"
+          style="min-height:58px;max-width:480px;padding:11px 14px;border:1px solid rgba(15,23,42,0.12);border-radius:var(--r-in);background:rgba(255,255,255,0.8);font-size:15px;font-family:inherit;outline:none;line-height:1.6;transition:border 0.15s;">{{ config.admin_signature | safe }}</div>
+        <div style="margin-top:7px;font-size:12px;color:var(--muted);">Používá se ve všech odchozích e-mailech. V šabloně dostupný jako <code style="background:rgba(0,122,255,0.1);padding:1px 6px;border-radius:5px;font-family:monospace;">{admin_signature}</code> (plain text)</div>
+      </div>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          syncSigHidden();
+          const ed = document.getElementById('sig_editor');
+          ed.addEventListener('focus', () => ed.style.borderColor = 'var(--accent)');
+          ed.addEventListener('blur',  () => { ed.style.borderColor = 'rgba(15,23,42,0.12)'; syncSigHidden(); });
+          ed.addEventListener('input', syncSigHidden);
+        });
+        function syncSigHidden() {
+          document.getElementById('admin_signature_hidden').value =
+            document.getElementById('sig_editor').innerHTML;
+        }
+        function execSig(cmd) {
+          document.getElementById('sig_editor').focus();
+          document.execCommand(cmd, false, null);
+          syncSigHidden();
+        }
+        function insertSigLink() {
+          const url = prompt('URL odkazu:', 'https://');
+          if (!url) return;
+          if (!url.match(/^https?:\/\//i)) {
+            alert('Pouze HTTP nebo HTTPS URL jsou povoleny.');
+            return;
+          }
+          const text = prompt('Text odkazu (Enter = použij URL):', '') || url;
+          document.getElementById('sig_editor').focus();
+          document.execCommand('insertHTML', false,
+            `<a href="${url}" style="color:#007AFF;text-decoration:none;">${text}</a>`);
+          syncSigHidden();
+        }
+        function insertSigColor() {
+          const color = prompt('Barva textu (hex nebo název, např. #FF3B30):', '#007AFF');
+          if (!color) return;
+          document.getElementById('sig_editor').focus();
+          document.execCommand('foreColor', false, color);
+          syncSigHidden();
+        }
+        function clearSigFormat() {
+          document.getElementById('sig_editor').focus();
+          document.execCommand('removeFormat', false, null);
+          syncSigHidden();
+        }
+      </script>
+
+      <div class="divider"></div>
+
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label">Šablona potvrzovacího e-mailu</label>
+        <input type="hidden" name="auto_reply_template" id="auto_reply_template_hidden">
+        <!-- Toolbar -->
+        <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
+          <button type="button" onclick="execTpl('bold')" title="Tučně" style="width:32px;height:32px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;"><b>B</b></button>
+          <button type="button" onclick="execTpl('italic')" title="Kurzíva" style="width:32px;height:32px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;"><i>I</i></button>
+          <button type="button" onclick="execTpl('underline')" title="Podtržení" style="width:32px;height:32px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;"><u>U</u></button>
+          <button type="button" onclick="insertTplLink()" title="Odkaz" style="height:32px;padding:0 10px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:12px;color:var(--accent);">🔗 Odkaz</button>
+          <button type="button" onclick="insertTplColor()" title="Barva" style="height:32px;padding:0 10px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:12px;">🎨 Barva</button>
+          <button type="button" onclick="clearTplFormat()" title="Reset formátování" style="height:32px;padding:0 10px;border:1px solid rgba(15,23,42,0.12);border-radius:8px;background:rgba(255,255,255,0.8);cursor:pointer;font-size:12px;color:var(--muted);">✕ Reset</button>
+        </div>
+        <!-- Editor -->
+        <div id="tpl_editor" contenteditable="true"
+          style="min-height:180px;padding:13px 14px;border:1px solid rgba(15,23,42,0.12);border-radius:var(--r-in);background:rgba(255,255,255,0.8);font-size:14px;font-family:inherit;outline:none;line-height:1.75;transition:border 0.15s;white-space:pre-wrap;">{{ config.auto_reply_template | safe }}</div>
+        <!-- Proměnné -->
+        <div style="margin-top:10px;padding:12px 14px;background:rgba(0,122,255,0.06);border-radius:10px;border:1px solid rgba(0,122,255,0.12);">
+          <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px;">Dostupné proměnné — klikni pro vložení</div>
+          <div style="font-size:12px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;">
+            <code onclick="insertTplVar('{ticket_id}')" style="background:rgba(0,122,255,0.1);padding:3px 8px;border-radius:6px;font-family:monospace;cursor:pointer;" title="Vložit">{ticket_id}</code>
+            <code onclick="insertTplVar('{subject}')" style="background:rgba(0,122,255,0.1);padding:3px 8px;border-radius:6px;font-family:monospace;cursor:pointer;" title="Vložit">{subject}</code>
+            <code onclick="insertTplVar('{date}')" style="background:rgba(0,122,255,0.1);padding:3px 8px;border-radius:6px;font-family:monospace;cursor:pointer;" title="Vložit">{date}</code>
+            <code onclick="insertTplVar('{customer_name}')" style="background:rgba(0,122,255,0.1);padding:3px 8px;border-radius:6px;font-family:monospace;cursor:pointer;" title="Vložit">{customer_name}</code>
+            <code onclick="insertTplVar('{admin_signature}')" style="background:rgba(0,122,255,0.1);padding:3px 8px;border-radius:6px;font-family:monospace;cursor:pointer;" title="Vložit">{admin_signature}</code>
+          </div>
+        </div>
+      </div>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          syncTplHidden();
+          const ed = document.getElementById('tpl_editor');
+          ed.addEventListener('focus', () => ed.style.borderColor = 'var(--accent)');
+          ed.addEventListener('blur',  () => { ed.style.borderColor = 'rgba(15,23,42,0.12)'; syncTplHidden(); });
+          ed.addEventListener('input', syncTplHidden);
+        });
+        function syncTplHidden() {
+          document.getElementById('auto_reply_template_hidden').value =
+            document.getElementById('tpl_editor').innerHTML;
+        }
+        function execTpl(cmd) {
+          document.getElementById('tpl_editor').focus();
+          document.execCommand(cmd, false, null);
+          syncTplHidden();
+        }
+        function insertTplLink() {
+          const url = prompt('URL odkazu:', 'https://');
+          if (!url) return;
+          if (!url.match(/^https?:\/\//i)) {
+            alert('Pouze HTTP nebo HTTPS URL jsou povoleny.');
+            return;
+          }
+          const text = prompt('Text odkazu (Enter = URL):', '') || url;
+          document.getElementById('tpl_editor').focus();
+          document.execCommand('insertHTML', false,
+            `<a href="${url}" style="color:#007AFF;text-decoration:none;">${text}</a>`);
+          syncTplHidden();
+        }
+        function insertTplColor() {
+          const color = prompt('Barva textu (hex, např. #FF3B30):', '#007AFF');
+          if (!color) return;
+          document.getElementById('tpl_editor').focus();
+          document.execCommand('foreColor', false, color);
+          syncTplHidden();
+        }
+        function clearTplFormat() {
+          document.getElementById('tpl_editor').focus();
+          document.execCommand('removeFormat', false, null);
+          syncTplHidden();
+        }
+        function insertTplVar(variable) {
+          document.getElementById('tpl_editor').focus();
+          document.execCommand('insertText', false, variable);
+          syncTplHidden();
+        }
+      </script>
+    </div>
+
+    <!-- SLA -->
+    <div class="section-title rise rise-2">SLA — Lhůta řešení</div>
+    <div class="card p-5 mb-6 rise rise-2">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sla_days">Maximální počet dní na vyřízení</label>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <input class="form-input" type="number" name="sla_days" id="sla_days"
+            value="{{ config.sla_days }}" min="1" max="90" style="max-width:120px;">
+          <span style="font-size:14px;color:var(--text2);">pracovních dní</span>
+        </div>
+        <div style="margin-top:10px;font-size:13px;color:var(--muted);">
+          Reklamace blížící se lhůtě se zobrazí s oranžovým indikátorem, po překročení s červeným.
+        </div>
+      </div>
+    </div>
+
+    <!-- GEMINI AI -->
+    <div class="section-title rise rise-2">Gemini AI</div>
+    <div class="card p-5 mb-6 rise rise-2">
+
+      {% if config.gemini_api_key %}
+      <div class="alert alert-success" style="margin-bottom:20px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        API klíč je nastaven — AI návrhy odpovědí jsou aktivní
+      </div>
+      {% else %}
+      <div class="alert alert-error" style="margin-bottom:20px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        API klíč není nastaven — AI návrhy nebudou fungovat
+      </div>
+      {% endif %}
+
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="gemini_api_key">Google Gemini API klíč</label>
+        <div style="display:flex;gap:8px;">
+          <input class="form-input" type="password" name="gemini_api_key" id="gemini_api_key"
+            placeholder="{% if config.gemini_api_key %}Klíč je uložen — vyplň pro změnu{% else %}AIza…{% endif %}"
+            autocomplete="off" style="flex:1;">
+          <button type="button" onclick="toggleKey()" class="btn btn-secondary btn-sm" style="flex-shrink:0;" title="Zobrazit/skrýt">
+            <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px;">
+          Klíč zdarma na aistudio.google.com → Get API key. Prázdné pole = klíč se nezmění.
+        </div>
+      </div>
+    </div>
+
+    <!-- PŘIPOMÍNKY -->
+    <div class="section-title rise rise-3" style="margin-top:32px;">Připomínky a notifikace</div>
+    <div class="card p-5 rise rise-3" style="margin-bottom:24px;">
+      <div style="display:flex;flex-direction:column;gap:20px;">
+        <div>
+          <label class="form-label" for="reminder_days">Odeslat připomínku po X dnech bez vyřešení</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="number" name="reminder_days" id="reminder_days" class="form-input" min="0" max="365" value="{{ config.reminder_days }}" style="max-width:100px;">
+            <span style="font-size:13px;color:var(--muted);">dnů (0 = vypnuto)</span>
+          </div>
+        </div>
+        <div>
+          <label class="form-label" for="admin_email">E-mail pro připomínky</label>
+          <input type="email" name="admin_email" id="admin_email" class="form-input" value="{{ config.admin_email }}" placeholder="martin@eremvole.cz">
+        </div>
+        <div>
+          <label class="form-label" for="admin_notify_email">E-mail pro notifikace o nových odpovědích zákazníků</label>
+          <input type="email" name="admin_notify_email" id="admin_notify_email" class="form-input"
+            value="{{ config.admin_notify_email }}"
+            placeholder="martin@eremvole.cz (prázdné = notifikace vypnuty)">
+          <div style="margin-top:7px;font-size:12px;color:var(--muted);">
+            Pokud je vyplněno, systém pošle e-mail kdykoliv zákazník odpoví na ticket. Prázdné pole = notifikace vypnuty.
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Smart auto-odpověď</label>
+          <label class="toggle-wrap">
+            <label class="toggle">
+              <input type="checkbox" name="smart_auto_reply_enabled" id="smart_auto_reply_enabled" value="1" {% if config.smart_auto_reply_enabled %}checked{% endif %}>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+            <div>
+              <div style="font-size:15px;font-weight:600;color:var(--text);">Automatická odpověď na dotazy o stavu</div>
+              <div style="font-size:13px;color:var(--text2);">AI pozná dotaz o stavu objednávky a odpoví automaticky</div>
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAVE -->
+    <div class="rise rise-3">
+      <button type="submit" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Uložit nastavení
+      </button>
+    </div>
+
+  </form>
+
+  <!-- REPLY TEMPLATES -->
+  <div id="templates"></div>
+  <div class="section-title rise rise-4" style="margin-top:40px;">Šablony odpovědí</div>
+  <div class="card mb-6 rise rise-4" style="overflow:hidden;">
+    {% if config.reply_templates %}
+    <div style="padding:0;">
+      {% for tpl in config.reply_templates %}
+      <div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid rgba(15,23,42,0.055);">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);">{{ tpl.name }}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px;">{{ tpl.body[:80] }}{% if tpl.body|length > 80 %}…{% endif %}</div>
+        </div>
+        <form method="POST" action="/settings/templates/delete/{{ tpl.id }}" onsubmit="return confirm('Smazat šablonu?')">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            Smazat
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="padding:24px 20px;text-align:center;color:var(--muted);font-size:14px;">Zatím žádné šablony</div>
+    {% endif %}
+  </div>
+
+  <!-- ADD TEMPLATE -->
+  <div class="section-title rise rise-4">Přidat šablonu</div>
+  <div class="card p-5 rise rise-4">
+    <form method="POST" action="/settings/templates/add">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label" for="tpl_name">Název šablony</label>
+        <input class="form-input" type="text" name="tpl_name" id="tpl_name"
+          placeholder="např. Zásilka se zpozdila">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="tpl_body">Text šablony</label>
+        <textarea class="form-textarea" name="tpl_body" id="tpl_body"
+          placeholder="Dobrý den,&#10;&#10;omlouváme se za prodlení…" rows="6"></textarea>
+      </div>
+      <div style="margin-top:16px;">
+        <button type="submit" class="btn btn-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Přidat šablonu
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+<script>
+function toggleKey() {
+  const input = document.getElementById('gemini_api_key');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function toggleAutoReply() {
+  const hidden = document.getElementById('auto_reply_hidden');
+  const track  = document.getElementById('toggle-track');
+  const thumb  = track.querySelector('.toggle-thumb');
+  const isOn   = hidden.value === '1';
+  if (isOn) {
+    hidden.value = '0';
+    track.style.background = '#e0e0e5';
+    thumb.style.transform = 'none';
+  } else {
+    hidden.value = '1';
+    track.style.background = 'var(--green)';
+    thumb.style.transform = 'translateX(20px)';
+  }
+}
+</script>
+{% endblock %}

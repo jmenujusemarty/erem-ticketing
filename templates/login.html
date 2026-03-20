@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% block title %}Přihlášení — erem ticketing{% endblock %}
+
+{% block head %}
+<style>
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: 24px;
+  }
+  .login-wrap {
+    width: 100%;
+    max-width: 400px;
+  }
+  .login-card {
+    padding: 40px 36px;
+  }
+  .login-logo {
+    width: 56px; height: 56px;
+    background: linear-gradient(180deg, #4d6fff 0%, #3559ff 100%);
+    border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 24px;
+    box-shadow: 0 12px 28px rgba(53,89,255,0.30);
+  }
+  .login-logo svg { width: 28px; height: 28px; color: white; }
+  .login-title {
+    text-align: center;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .login-sub {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text2);
+    margin-bottom: 32px;
+  }
+  /* Google button */
+  .btn-google {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a1a;
+    background: #ffffff;
+    border: 1.5px solid rgba(15,23,42,0.14);
+    border-radius: var(--r-btn);
+    cursor: pointer;
+    transition: var(--trans);
+    box-shadow: 0 2px 8px rgba(15,23,42,0.07);
+    position: relative;
+  }
+  .btn-google:hover {
+    background: #f8f9ff;
+    border-color: rgba(15,23,42,0.22);
+    box-shadow: 0 4px 16px rgba(15,23,42,0.11);
+    transform: translateY(-1px);
+  }
+  .btn-google:active { transform: none; }
+  .btn-google:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+  .btn-google svg { flex-shrink: 0; }
+  /* Spinner uvnitř tlačítka */
+  .g-spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(0,0,0,0.12);
+    border-top-color: #4285F4;
+    border-radius: 50%;
+    animation: gspin 0.7s linear infinite;
+    display: none;
+  }
+  .g-spinner.visible { display: block; }
+  @keyframes gspin { to { transform: rotate(360deg); } }
+  /* Divider */
+  .or-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .or-divider::before, .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(15,23,42,0.09);
+  }
+  /* Fallback form */
+  .btn-login {
+    width: 100%;
+    justify-content: center;
+    font-size: 15px;
+    padding: 13px 20px;
+  }
+  .login-footer {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  /* Error alert */
+  #fb-error {
+    display: none;
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    background: rgba(255,59,48,0.08);
+    border: 1px solid rgba(255,59,48,0.2);
+    border-radius: 12px;
+    font-size: 13px;
+    color: #cc2200;
+  }
+  /* Toggle fallback link */
+  .toggle-fallback {
+    text-align: center;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .toggle-fallback a {
+    color: var(--text2);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .toggle-fallback a:hover { color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="login-wrap rise">
+  <div class="card login-card">
+
+    <div class="login-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+    </div>
+
+    <h1 class="login-title">Přihlášení</h1>
+    <p class="login-sub">erem ticketing</p>
+
+    <!-- Flash zprávy -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}" style="margin-bottom:16px;">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Firebase chyba -->
+    <div id="fb-error"></div>
+
+    {% if firebase_enabled %}
+    <!-- Google Sign-In -->
+    <button id="btn-google" class="btn-google" onclick="signInWithGoogle()">
+      <!-- Google logo SVG -->
+      <svg width="20" height="20" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        <path fill="none" d="M0 0h48v48H0z"/>
+      </svg>
+      <div class="g-spinner" id="g-spinner"></div>
+      <span id="g-label">Přihlásit se přes Google</span>
+    </button>
+
+    <div class="or-divider">nebo</div>
+    {% endif %}
+
+    {% if firebase_enabled %}
+    <!-- Firebase email/heslo -->
+    <div id="email-form" style="display:none;">
+      <div class="form-group">
+        <label class="form-label" for="fb-email">E-mail</label>
+        <input class="form-input" type="email" id="fb-email" required autocomplete="email" placeholder="vas@email.cz">
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label" for="fb-password">Heslo</label>
+        <input class="form-input" type="password" id="fb-password" required autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button type="button" class="btn btn-primary btn-login" id="btn-email-login" onclick="signInWithEmail()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+          <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+        </svg>
+        <span id="email-label">Přihlásit se</span>
+      </button>
+    </div>
+    <div class="toggle-fallback">
+      <a id="toggle-email-link" onclick="toggleEmailForm()">Přihlásit se e-mailem a heslem</a>
+    </div>
+    {% else %}
+    <!-- Fallback Flask login (bez Firebase) -->
+    <form method="POST" id="pw-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label" for="username">Uživatelské jméno</label>
+        <input class="form-input" type="text" id="username" name="username" required autofocus autocomplete="username">
+      </div>
+      <div class="form-group" style="margin-bottom:24px;">
+        <label class="form-label" for="password">Heslo</label>
+        <input class="form-input" type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-login">Přihlásit se</button>
+    </form>
+    {% endif %}
+
+    <p class="login-footer">erem · reklamace.eremvole.cz</p>
+  </div>
+</div>
+
+{% if firebase_enabled %}
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:     {{ firebase_api_key | tojson }},
+  authDomain: {{ firebase_auth_domain | tojson }},
+  projectId:  {{ firebase_project_id | tojson }},
+  appId:      {{ firebase_app_id | tojson }},
+});
+
+const _auth = firebase.auth();
+const _googleProvider = new firebase.auth.GoogleAuthProvider();
+
+function _showError(msg) {
+  const el = document.getElementById('fb-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function toggleEmailForm() {
+  const form = document.getElementById('email-form');
+  const link = document.getElementById('toggle-email-link');
+  const visible = form.style.display !== 'none';
+  form.style.display = visible ? 'none' : 'block';
+  link.textContent = visible ? 'Přihlásit se e-mailem a heslem' : 'Zpět na Google';
+  if (!visible) document.getElementById('fb-email').focus();
+}
+
+async function signInWithEmail() {
+  const email    = document.getElementById('fb-email').value.trim();
+  const password = document.getElementById('fb-password').value;
+  const btn      = document.getElementById('btn-email-login');
+  const label    = document.getElementById('email-label');
+  document.getElementById('fb-error').style.display = 'none';
+
+  if (!email || !password) { _showError('Zadej e-mail a heslo.'); return; }
+
+  btn.disabled = true;
+  label.textContent = 'Přihlašuji…';
+
+  try {
+    const result  = await _auth.signInWithEmailAndPassword(email, password);
+    const idToken = await result.user.getIdToken();
+
+    const resp = await fetch('/api/firebase_auth', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ idToken }),
+    });
+    const data = await resp.json();
+
+    if (data.ok) {
+      window.location.href = '/';
+    } else {
+      _showError(data.error || 'Přihlášení selhalo');
+    }
+  } catch(e) {
+    const msgs = {
+      'auth/user-not-found':   'Účet s tímto e-mailem neexistuje.',
+      'auth/wrong-password':   'Špatné heslo.',
+      'auth/invalid-email':    'Neplatný formát e-mailu.',
+      'auth/too-many-requests':'Příliš mnoho pokusů. Zkus to za chvíli.',
+      'auth/invalid-credential': 'Špatný e-mail nebo heslo.',
+    };
+    _showError(msgs[e.code] || e.message || 'Neznámá chyba');
+  } finally {
+    btn.disabled = false;
+    label.textContent = 'Přihlásit se';
+  }
+}
+
+// Enter key v polích
+document.addEventListener('DOMContentLoaded', () => {
+  ['fb-email','fb-password'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') signInWithEmail(); });
+  });
+});
+
+async function signInWithGoogle() {
+  const btn    = document.getElementById('btn-google');
+  const spinner= document.getElementById('g-spinner');
+  const label  = document.getElementById('g-label');
+  btn.disabled = true;
+  spinner.classList.add('visible');
+  label.textContent = 'Přihlašuji…';
+  document.getElementById('fb-error').style.display = 'none';
+
+  try {
+    const result  = await _auth.signInWithPopup(_googleProvider);
+    const idToken = await result.user.getIdToken();
+
+    const resp = await fetch('/api/firebase_auth', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ idToken }),
+    });
+    const data = await resp.json();
+
+    if (data.ok) {
+      window.location.href = '/';
+    } else {
+      _showError(data.error || 'Přihlášení selhalo');
+      btn.disabled = false;
+      spinner.classList.remove('visible');
+      label.textContent = 'Přihlásit se přes Google';
+    }
+  } catch(e) {
+    _showError(e.code === 'auth/popup-closed-by-user' ? 'Přihlášení zrušeno.' : (e.message || 'Neznámá chyba'));
+    btn.disabled = false;
+    spinner.classList.remove('visible');
+    label.textContent = 'Přihlásit se přes Google';
+  }
+}
+</script>
+{% endif %}
+{% endblock %}

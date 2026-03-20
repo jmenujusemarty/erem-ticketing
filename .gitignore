@@ -1,0 +1,53 @@
+# Citlivé soubory — NIKDY nekomitnout
+.env
+*.env
+.env.*
+!.env.example
+
+# Databáze
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+pip-log.txt
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Docker
+docker-compose.override.yml
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logy
+*.log
+logs/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/

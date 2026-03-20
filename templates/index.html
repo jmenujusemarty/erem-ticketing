@@ -1,0 +1,910 @@
+{% extends "base.html" %}
+{% block title %}erem ticketing{% endblock %}
+
+{% block head %}
+<style>
+  .tc-ai-row {
+    font-size: 13px;
+    color: var(--text2);
+    margin-top: 3px;
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    line-height: 1.4;
+  }
+  .tc-ai-row svg { flex-shrink:0; margin-top:1px; opacity:0.5; }
+  .order-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: rgba(0,122,255,0.09);
+    color: var(--accent);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    flex-shrink: 0;
+  }
+  .dot-pulse {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--purple);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:.4;transform:scale(0.8)} 50%{opacity:1;transform:scale(1.2)} }
+
+  .btn-analyze-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: rgba(175,82,222,0.09);
+    color: var(--purple);
+    border: 1px solid rgba(175,82,222,0.15);
+    border-radius: var(--r-btn);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--trans);
+  }
+  .btn-analyze-all:hover { background: rgba(175,82,222,0.15); }
+  .btn-analyze-all svg { width:14px; height:14px; }
+
+  /* SLA */
+  .sla-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+  .sla-dot-red    { background: var(--red); animation: pulse-sla 1.2s ease-in-out infinite; }
+  .sla-dot-yellow { background: var(--orange); }
+  @keyframes pulse-sla { 0%,100%{opacity:.5} 50%{opacity:1} }
+  .sla-age { font-size: 11px; font-weight: 600; margin-top: 3px; }
+  .sla-age-red    { color: var(--red); }
+  .sla-age-yellow { color: var(--orange); }
+
+  /* Filter tabs */
+  .filter-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .filter-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--r-btn);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: rgba(142,142,147,0.08);
+    color: var(--text2);
+    transition: var(--trans);
+    user-select: none;
+  }
+  .filter-tab:hover { background: rgba(142,142,147,0.14); }
+  .filter-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .filter-tab.active.ft-nova    { background: var(--orange); border-color: var(--orange); }
+  .filter-tab.active.ft-reseni  { background: var(--accent); border-color: var(--accent); }
+  .filter-tab.active.ft-vyreseno{ background: var(--green);  border-color: var(--green); }
+  .filter-tab .ft-count {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.25);
+    min-width: 18px;
+    text-align: center;
+  }
+  .filter-tab:not(.active) .ft-count { background: rgba(0,0,0,0.07); }
+
+  /* No-reply chip */
+  .no-reply-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    background: rgba(255,149,0,0.10);
+    color: var(--orange);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .no-reply-chip.long {
+    background: rgba(255,59,48,0.10);
+    color: var(--red);
+  }
+
+  /* Category chip */
+  .cat-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    background: rgba(50,173,230,0.1);
+    color: #1a8aad;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* Priority badges */
+  .prio-high {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px;
+    background: rgba(255,149,0,0.12); color: var(--orange);
+    border-radius: 6px; font-size: 11px; font-weight: 700;
+  }
+  .prio-critical {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px;
+    background: rgba(255,59,48,0.12); color: var(--red);
+    border-radius: 6px; font-size: 11px; font-weight: 700;
+  }
+  .prio-low {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px;
+    background: rgba(142,142,147,0.1); color: var(--muted);
+    border-radius: 6px; font-size: 11px; font-weight: 600;
+  }
+
+  /* Assignee avatar chip */
+  .assignee-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 7px;
+    background: rgba(175,82,222,0.09); color: var(--purple);
+    border-radius: 6px; font-size: 11px; font-weight: 600;
+  }
+
+  /* Search */
+  .search-wrap {
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .search-wrap svg.search-icon {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    padding: 11px 40px 11px 40px;
+    border: 1px solid rgba(15,23,42,0.12);
+    border-radius: var(--r-in);
+    font-size: 14px; font-family: inherit;
+    color: var(--text);
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: var(--blur-sm);
+    -webkit-backdrop-filter: var(--blur-sm);
+    transition: border 0.15s, box-shadow 0.15s;
+    outline: none;
+  }
+  .search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,122,255,0.12);
+    background: rgba(255,255,255,0.9);
+  }
+  .search-clear {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px;
+    background: rgba(142,142,147,0.18); color: var(--muted);
+    border: none; border-radius: 50%; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    font-size: 13px; line-height: 1;
+  }
+  .search-count {
+    font-size: 12px; color: var(--muted);
+    padding: 4px 0 8px;
+    display: none;
+  }
+
+  /* Checkbox */
+  .ticket-cb {
+    width: 18px; height: 18px;
+    border-radius: 5px; border: 1.5px solid rgba(15,23,42,0.18);
+    background: rgba(255,255,255,0.8);
+    flex-shrink: 0; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+    margin-top: 2px;
+  }
+  .ticket-cb:checked {
+    background: var(--accent); border-color: var(--accent);
+    background-image: url("data:image/svg+xml,%3Csvg width='11' height='9' viewBox='0 0 11 9' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4L4 7L10 1' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: center;
+  }
+  .cb-select-all {
+    width: 18px; height: 18px;
+    border-radius: 5px; border: 1.5px solid rgba(15,23,42,0.18);
+    background: rgba(255,255,255,0.8);
+    flex-shrink: 0; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .cb-select-all:checked {
+    background: var(--accent); border-color: var(--accent);
+    background-image: url("data:image/svg+xml,%3Csvg width='11' height='9' viewBox='0 0 11 9' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4L4 7L10 1' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: center;
+  }
+  /* Skryj checkboxy pokud nic nevybráno */
+  .cb-col { display: none; align-items: flex-start; padding-top: 2px; }
+  .show-checkboxes .cb-col { display: flex; }
+
+  /* Bulk action bar */
+  .bulk-bar {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: rgba(15,23,42,0.94);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 16px 48px rgba(15,23,42,0.32);
+    z-index: 200;
+    white-space: nowrap;
+    animation: rise-in 0.28s cubic-bezier(0.22,1,0.36,1) both;
+  }
+  .bulk-bar-count { font-size: 13px; font-weight: 700; color: white; padding: 0 4px; }
+  .bulk-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 14px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 1px solid transparent; transition: var(--trans);
+  }
+  .bulk-btn-resolve { background: rgba(52,199,89,0.2); color: #2fb55f; border-color: rgba(52,199,89,0.3); }
+  .bulk-btn-resolve:hover { background: rgba(52,199,89,0.3); }
+  .bulk-btn-spam { background: rgba(142,142,147,0.18); color: #e2e8f0; }
+  .bulk-btn-spam:hover { background: rgba(142,142,147,0.28); }
+  .bulk-btn-delete { background: rgba(255,59,48,0.2); color: #ff6b62; border-color: rgba(255,59,48,0.3); }
+  .bulk-btn-delete:hover { background: rgba(255,59,48,0.3); }
+  .bulk-btn-cancel { background: transparent; color: rgba(255,255,255,0.5); }
+  .bulk-btn-cancel:hover { color: white; }
+
+  /* Ticket row redesign */
+  .ticket-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px !important;
+    text-decoration: none;
+    color: var(--text);
+    border-bottom: 1px solid rgba(15,23,42,0.055);
+    transition: background 0.12s;
+  }
+  .ticket-row:last-child { border-bottom: none; }
+  .ticket-row:hover { background: rgba(0,122,255,0.025); }
+
+  .tc-main { flex: 1; min-width: 0; }
+  .tc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .tc-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tc-date-inline { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+  .tc-subject-main { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tc-summary { font-size: 12.5px; color: var(--text2); margin-bottom: 7px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tc-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .chip-id { font-size: 11px; font-weight: 600; padding: 2px 8px; background: rgba(142,142,147,0.1); color: var(--muted); border-radius: 6px; font-family: 'SF Mono', ui-monospace, monospace; }
+
+  .tc-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="page">
+
+  <!-- PAGE HEADER -->
+  <div class="page-head rise flex items-center justify-between" style="flex-wrap:wrap;gap:12px;">
+    <div>
+      <div class="page-eyebrow">erem ticketing</div>
+      <h1 class="page-title">Přehled</h1>
+    </div>
+    {% set unanalyzed = complaints|selectattr('problem_summary','equalto',None)|list|length %}
+    {% if unanalyzed > 0 %}
+    <button class="btn-analyze-all" id="btn-analyze-all" onclick="analyzeAll()" data-tip="Spustí AI analýzu všech ticketů bez shrnutí — kategorie, shrnutí problému, číslo objednávky">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+      </svg>
+      Analyzovat AI ({{ unanalyzed }})
+    </button>
+    {% endif %}
+  </div>
+
+  <!-- FLASH MESSAGES -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'error' }} rise">
+          {% if category == 'success' %}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          {% else %}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {% endif %}
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- STATS -->
+  <div class="stats-grid rise rise-1">
+    <div class="card stat-card">
+      <div class="stat-label">Celkem</div>
+      <div class="stat-num">{{ complaints|length }}</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label"><span class="stat-dot dot-nova"></span>Nové</div>
+      <div class="stat-num" style="color:var(--orange);">
+        {{ complaints|selectattr('status','search','[Nn]ov')|list|length }}
+      </div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label"><span class="stat-dot dot-reseni"></span>V řešení</div>
+      <div class="stat-num" style="color:var(--accent);">
+        {{ complaints|selectattr('status','search','[Řř]ešen')|list|length }}
+      </div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label"><span class="stat-dot dot-vyreseno"></span>Vyřešeno</div>
+      <div class="stat-num" style="color:var(--green);">
+        {{ complaints|selectattr('status','search','[Vv]yřešen')|list|length }}
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTER TABS -->
+  {% if complaints %}
+  {% set cnt_all      = complaints|length %}
+  {% set cnt_nova     = complaints|selectattr('status','search','[Nn]ov')|list|length %}
+  {% set cnt_reseni   = complaints|selectattr('status','search','[Vv] [řr]')|list|length %}
+  {% set cnt_vyreseno = complaints|selectattr('status','search','[Vv]y[řr]')|list|length %}
+  {% set cnt_kritical = complaints|selectattr('priority','equalto','Kritická')|list|length %}
+  <div class="filter-tabs rise rise-2" id="filter-tabs" style="margin-bottom:12px;">
+    <button class="filter-tab active" data-filter="all" onclick="setFilter('all',this)" data-tip="Zobrazit všechny tickety">
+      Vše <span class="ft-count">{{ cnt_all }}</span>
+    </button>
+    <button class="filter-tab ft-nova" data-filter="nova" onclick="setFilter('nova',this)" data-tip="Nové tickety — čekají na první reakci">
+      Nové <span class="ft-count">{{ cnt_nova }}</span>
+    </button>
+    <button class="filter-tab ft-reseni" data-filter="reseni" onclick="setFilter('reseni',this)" data-tip="Tickety v aktivním řešení — komunikace probíhá">
+      V řešení <span class="ft-count">{{ cnt_reseni }}</span>
+    </button>
+    <button class="filter-tab ft-vyreseno" data-filter="vyreseno" onclick="setFilter('vyreseno',this)" data-tip="Uzavřené tickety — problém byl vyřešen">
+      Vyřešeno <span class="ft-count">{{ cnt_vyreseno }}</span>
+    </button>
+    {% if cnt_kritical > 0 %}
+    <button class="filter-tab" data-filter="kritical" onclick="setFilter('kritical',this)" data-tip="Tickety s kritickou prioritou" style="background:rgba(255,59,48,0.08);color:var(--red);">
+      ⚠ Kritické <span class="ft-count">{{ cnt_kritical }}</span>
+    </button>
+    {% endif %}
+    {% if current_email %}
+    <button class="filter-tab" data-filter="mine" onclick="setFilter('mine',this)" data-tip="Tickety přiřazené mně">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Moje tickety
+    </button>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- VYHLEDÁVÁNÍ -->
+  {% if complaints %}
+  <div class="rise rise-2 search-wrap" id="search-wrap">
+    <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" class="search-input" id="search-input" placeholder="Hledat zákazníka, předmět, ID, objednávku…" oninput="doSearch(this.value)" onkeydown="if(event.key==='Escape'){clearSearch()}">
+    <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Vymazat hledání">×</button>
+  </div>
+  <div class="search-count" id="search-count"></div>
+  {% endif %}
+
+  <!-- TICKET LIST -->
+  {% if complaints %}
+  <div class="section-title rise rise-2" style="display:none;">erem ticketing</div>
+
+  <!-- Hlavička se "Vybrat vše" -->
+  <div id="select-all-row" style="display:none;align-items:center;gap:10px;padding:8px 20px 6px;font-size:12px;color:var(--muted);">
+    <input type="checkbox" class="cb-select-all" id="cb-select-all" onchange="toggleSelectAll(this)">
+    <span>Vybrat vše</span>
+  </div>
+
+  <div class="ticket-list rise rise-2" id="ticket-list">
+    {% for c in complaints %}
+    {% set sl = c['status']|lower %}
+    {% if 'nová' in sl or 'nova' in sl %}
+      {% set badge_cls = 'badge-nova' %}{% set dot_cls = 'dot-nova' %}{% set status_key = 'nova' %}
+    {% elif 'vyřešen' in sl or 'vyreseno' in sl %}
+      {% set badge_cls = 'badge-vyreseno' %}{% set dot_cls = 'dot-vyreseno' %}{% set status_key = 'vyreseno' %}
+    {% elif 'řešen' in sl or 'resen' in sl %}
+      {% set badge_cls = 'badge-reseni' %}{% set dot_cls = 'dot-reseni' %}{% set status_key = 'reseni' %}
+    {% elif 'zamítn' in sl or 'zamitn' in sl %}
+      {% set badge_cls = 'badge-zamitnuto' %}{% set dot_cls = 'dot-zamitnuto' %}{% set status_key = 'zamitnuto' %}
+    {% else %}
+      {% set badge_cls = 'badge-reseni' %}{% set dot_cls = 'dot-reseni' %}{% set status_key = 'reseni' %}
+    {% endif %}
+
+    <a href="/complaint/{{ c['ticket_id'] }}" class="ticket-row card"
+       data-status="{{ status_key }}"
+       data-cat="{{ c['category'] or '' }}"
+       data-priority="{{ c['priority'] or 'Střední' }}"
+       data-assigned="{{ c['assigned_to'] or '' }}"
+       data-searchtext="{{ (c['customer_name'] or '') }} {{ (c['customer_email'] or '') }} {{ c['subject'] }} {{ c['ticket_id'] }} {{ (c['order_number'] or '') }} {{ (c['problem_summary'] or '') }}"
+       onclick="handleRowClick(event, this)">
+
+      <!-- Checkbox col -->
+      <div class="cb-col" onclick="event.stopPropagation()">
+        <input type="checkbox" class="ticket-cb" value="{{ c['ticket_id'] }}" onchange="onCbChange()">
+      </div>
+
+      <!-- Hlavní obsah -->
+      <div class="tc-main">
+        <!-- Zákazník + datum -->
+        <div class="tc-top">
+          <span class="tc-name">{{ c['customer_name'] or c['customer_email'] }}</span>
+          <span class="tc-date-inline">{{ c['date'][:16] if c['date'] else '' }}</span>
+        </div>
+        <!-- Předmět -->
+        <div class="tc-subject-main">{{ c['subject'] }}</div>
+        <!-- AI shrnutí nebo čekání -->
+        {% if c['problem_summary'] %}
+        <div class="tc-summary">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;opacity:0.45;margin-right:3px;"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+          {{ c['problem_summary'] }}
+        </div>
+        {% elif c['description'] %}
+        <div class="tc-summary" style="color:var(--muted);font-style:italic;">
+          <div class="dot-pulse" style="display:inline-block;vertical-align:middle;margin-right:5px;"></div>Čekám na AI analýzu…
+        </div>
+        {% endif %}
+        <!-- Chips: ID, kategorie, priorita, přiřazení, objednávka, no-reply, SLA -->
+        <div class="tc-chips">
+          <span class="chip-id">{{ c['ticket_id'] }}</span>
+          {% if c['category'] %}<span class="cat-chip">{{ c['category'] }}</span>{% endif %}
+          {% set prio = c['priority'] or 'Střední' %}
+          {% if prio == 'Kritická' %}
+          <span class="prio-critical" data-tip="Kritická priorita">⚠ Kritická</span>
+          {% elif prio == 'Vysoká' %}
+          <span class="prio-high" data-tip="Vysoká priorita">Vysoká</span>
+          {% elif prio == 'Nízká' %}
+          <span class="prio-low" data-tip="Nízká priorita">Nízká</span>
+          {% endif %}
+          {% if c['assigned_to'] %}
+          <span class="assignee-chip" data-tip="Přiřazeno: {{ c['assigned_to'] }}">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {{ c['assigned_to'].split('@')[0] }}
+          </span>
+          {% endif %}
+          {% if c['order_number'] %}
+          <span class="order-chip">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            #{{ c['order_number'] }}
+          </span>
+          {% endif %}
+          {% if c['auto_reply_sent'] %}
+          <span data-tip="Zákazníkovi byl automaticky odeslán potvrzovací e-mail po přijetí ticketu" style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(52,199,89,0.10);color:var(--green);border-radius:6px;font-size:11px;font-weight:600;">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Auto-reply
+          </span>
+          {% endif %}
+          {% if c['no_reply_delta'] %}
+          {% set is_long = c['age_days'] is not none and c['age_days'] >= 2 %}
+          <span class="no-reply-chip{% if is_long %} long{% endif %}" data-tip="Čas od přijetí ticketu bez odpovědi z naší strany{% if is_long %} — zákazník čeká příliš dlouho!{% endif %}">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            {{ c['no_reply_delta'] }}
+          </span>
+          {% endif %}
+          {% if c['sla_cls'] in ('red', 'yellow') and c['age_days'] is not none %}
+          <span class="no-reply-chip{% if c['sla_cls'] == 'red' %} long{% endif %}" data-tip="SLA upozornění — ticket je otevřený {{ c['age_days'] }} {% if c['age_days'] == 1 %}den{% elif c['age_days'] < 5 %}dny{% else %}dní{% endif %}{% if c['sla_cls'] == 'red' %}, překročen limit!{% endif %}">
+            {% if c['sla_cls'] == 'red' %}⚠ {% endif %}{{ c['age_days'] }}d SLA
+          </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Pravá strana: unread badge + status + šipka -->
+      <div class="tc-right">
+        {% if c['customer_unread'] %}
+        <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:#007AFF;color:#fff;border-radius:20px;font-size:11px;font-weight:700;flex-shrink:0;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Odpověď
+        </span>
+        {% endif %}
+        <span class="badge {{ badge_cls }}">
+          <span class="badge-dot {{ dot_cls }}"></span>
+          {{ c['status'] }}
+        </span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if complaints_total > 10 %}
+  <div style="text-align:center;padding:14px 0 6px;" id="more-tickets-wrap">
+    <button id="btn-more-tickets" onclick="loadMore('tickets')" class="btn btn-secondary" style="gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      Načíst starší
+      <span id="more-tickets-count" style="font-size:11px;opacity:.6;">{{ complaints_total - 10 }} dalších</span>
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- BULK ACTION BAR -->
+  <div id="bulk-bar" class="bulk-bar" style="display:none;">
+    <span class="bulk-bar-count" id="bulk-count">0 vybráno</span>
+    <div style="width:1px;height:20px;background:rgba(255,255,255,0.15);margin:0 2px;"></div>
+    <button class="bulk-btn bulk-btn-resolve" onclick="doBulkAction('resolve')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Vyřešit
+    </button>
+    <button class="bulk-btn bulk-btn-spam" onclick="doBulkAction('spam')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+      Spam
+    </button>
+    <button class="bulk-btn bulk-btn-delete" onclick="doBulkAction('delete')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+      Smazat
+    </button>
+    <button class="bulk-btn bulk-btn-cancel" onclick="cancelBulk()">Zrušit výběr</button>
+  </div>
+  <!-- Skrytý formulář pro bulk akce -->
+  <form id="bulk-form" method="POST" action="/bulk_action" style="display:none;">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" id="bulk-action-input">
+    <div id="bulk-ids-container"></div>
+  </form>
+
+  {% if spam_list %}
+  <div class="section-title rise rise-3" style="margin-top:32px;color:var(--muted);">Spam ({{ spam_total }})</div>
+  <div class="card rise rise-3" id="spam-list" style="overflow:hidden;opacity:0.7;">
+    {% for c in spam_list %}
+    <a href="/complaint/{{ c['ticket_id'] }}" style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(15,23,42,0.055);text-decoration:none;color:var(--text);transition:background 0.12s;" onmouseover="this.style.background='rgba(0,0,0,0.03)'" onmouseout="this.style.background=''">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c['subject'][:60] }}{% if c['subject']|length > 60 %}…{% endif %}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px;">{{ c['customer_email'] }} · {{ c['date'][:16] if c['date'] else '' }}</div>
+      </div>
+      <span style="font-size:11px;font-weight:600;padding:2px 8px;background:rgba(142,142,147,0.12);color:var(--muted);border-radius:6px;flex-shrink:0;">{{ c['ticket_id'] }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% if spam_total > 10 %}
+  <div style="text-align:center;padding:10px 0 4px;" id="more-spam-wrap">
+    <button id="btn-more-spam" onclick="loadMore('spam')" class="btn btn-secondary btn-sm" style="gap:8px;opacity:.7;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      Načíst starší spam
+      <span id="more-spam-count" style="font-size:11px;opacity:.6;">{{ spam_total - 10 }} dalších</span>
+    </button>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% else %}
+  <div class="card rise rise-2">
+    <div class="empty">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+      </div>
+      <h3>Zatím žádné tickety</h3>
+      <p>Nové tickety se zobrazí automaticky po obdržení e-mailu na eshop@eremvole.cz</p>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+const CSRF_TOKEN = '{{ csrf_token() }}';
+const CURRENT_EMAIL = '{{ current_email }}';
+
+// ── Stav filtrů ────────────────────────────────────────────────────────────
+let _activeFilter = 'all';
+let _searchQuery = '';
+
+function setFilter(filter, btn) {
+  _activeFilter = filter;
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _applyFilters();
+}
+
+function _applyFilters() {
+  const list = document.getElementById('ticket-list');
+  if (!list) return;
+  const rows = list.querySelectorAll('.ticket-row');
+  let visibleCount = 0;
+
+  rows.forEach(row => {
+    const s = row.dataset.status || '';
+    const prio = (row.dataset.priority || '').toLowerCase();
+    const assigned = row.dataset.assigned || '';
+    const searchText = (row.dataset.searchtext || '').toLowerCase();
+
+    let statusMatch = true;
+    if (_activeFilter === 'nova') statusMatch = s === 'nova';
+    else if (_activeFilter === 'reseni') statusMatch = s === 'reseni';
+    else if (_activeFilter === 'vyreseno') statusMatch = s === 'vyreseno';
+    else if (_activeFilter === 'zamitnuto') statusMatch = s === 'zamitnuto';
+    else if (_activeFilter === 'kritical') statusMatch = prio === 'kritická';
+    else if (_activeFilter === 'mine') statusMatch = (CURRENT_EMAIL && assigned === CURRENT_EMAIL);
+
+    let searchMatch = true;
+    if (_searchQuery) {
+      searchMatch = searchText.includes(_searchQuery);
+    }
+
+    const show = statusMatch && searchMatch;
+    row.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
+  });
+
+  // empty state
+  let empty = list.querySelector('.filter-empty');
+  if (visibleCount === 0) {
+    if (!empty) {
+      empty = document.createElement('div');
+      empty.className = 'filter-empty';
+      empty.style.cssText = 'padding:32px;text-align:center;color:var(--muted);font-size:14px;';
+      empty.textContent = _searchQuery ? 'Žádné výsledky pro "' + _searchQuery + '"' : 'Žádné tickety v této kategorii';
+      list.appendChild(empty);
+    } else {
+      empty.textContent = _searchQuery ? 'Žádné výsledky pro "' + _searchQuery + '"' : 'Žádné tickety v této kategorii';
+    }
+  } else {
+    if (empty) empty.remove();
+  }
+
+  // search count
+  const countEl = document.getElementById('search-count');
+  if (countEl) {
+    if (_searchQuery) {
+      countEl.style.display = 'block';
+      countEl.textContent = `Nalezeno: ${visibleCount} ${visibleCount === 1 ? 'ticket' : visibleCount < 5 ? 'tickety' : 'ticketů'}`;
+      // Skryj "Načíst starší" při hledání
+      const moreWrap = document.getElementById('more-tickets-wrap');
+      if (moreWrap) moreWrap.style.display = 'none';
+    } else {
+      countEl.style.display = 'none';
+      const moreWrap = document.getElementById('more-tickets-wrap');
+      if (moreWrap) moreWrap.style.display = '';
+    }
+  }
+}
+
+// ── Vyhledávání ────────────────────────────────────────────────────────────
+function doSearch(val) {
+  _searchQuery = val.trim().toLowerCase();
+  const clearBtn = document.getElementById('search-clear');
+  if (clearBtn) clearBtn.style.display = _searchQuery ? 'flex' : 'none';
+  _applyFilters();
+}
+
+function clearSearch() {
+  const inp = document.getElementById('search-input');
+  if (inp) { inp.value = ''; inp.focus(); }
+  doSearch('');
+}
+
+// ── Checkbox / Bulk akce ───────────────────────────────────────────────────
+let _checkboxMode = false;
+
+function handleRowClick(e, row) {
+  // Pokud klikneme na checkbox, nechej normální chování
+  if (e.target.classList.contains('ticket-cb')) return;
+  // Pokud jsou checkboxy aktivní, přepni checkbox místo navigace
+  if (_checkboxMode) {
+    e.preventDefault();
+    const cb = row.querySelector('.ticket-cb');
+    if (cb) { cb.checked = !cb.checked; onCbChange(); }
+    return;
+  }
+  // Jinak normální navigace (nic neděláme, <a> href funguje)
+}
+
+function onCbChange() {
+  const checked = document.querySelectorAll('.ticket-cb:checked');
+  const list = document.getElementById('ticket-list');
+  const selectAllRow = document.getElementById('select-all-row');
+
+  if (checked.length > 0) {
+    _checkboxMode = true;
+    if (list) list.classList.add('show-checkboxes');
+    if (selectAllRow) selectAllRow.style.display = 'flex';
+    _updateBulkBar(checked.length);
+  } else {
+    _checkboxMode = false;
+    if (list) list.classList.remove('show-checkboxes');
+    if (selectAllRow) selectAllRow.style.display = 'none';
+    document.getElementById('bulk-bar').style.display = 'none';
+  }
+}
+
+function _updateBulkBar(count) {
+  const bar = document.getElementById('bulk-bar');
+  const countEl = document.getElementById('bulk-count');
+  if (bar) bar.style.display = 'flex';
+  if (countEl) countEl.textContent = `${count} vybráno`;
+}
+
+function toggleSelectAll(cbAll) {
+  const list = document.getElementById('ticket-list');
+  if (!list) return;
+  const cbs = list.querySelectorAll('.ticket-row:not([style*="display: none"]):not([style*="display:none"]) .ticket-cb');
+  cbs.forEach(cb => { cb.checked = cbAll.checked; });
+  onCbChange();
+  if (cbAll.checked && cbs.length > 0) {
+    _checkboxMode = true;
+    list.classList.add('show-checkboxes');
+    document.getElementById('select-all-row').style.display = 'flex';
+    _updateBulkBar(cbs.length);
+  }
+}
+
+function doBulkAction(action) {
+  const checked = [...document.querySelectorAll('.ticket-cb:checked')];
+  if (checked.length === 0) return;
+  const labels = { resolve: 'vyřešit', spam: 'označit jako spam', delete: 'smazat' };
+  if (!confirm(`Opravdu chcete ${labels[action] || action} ${checked.length} ${checked.length === 1 ? 'ticket' : 'ticketů'}?`)) return;
+
+  const form = document.getElementById('bulk-form');
+  const idsContainer = document.getElementById('bulk-ids-container');
+  document.getElementById('bulk-action-input').value = action;
+  idsContainer.innerHTML = checked.map(cb => `<input type="hidden" name="ticket_ids[]" value="${_esc(cb.value)}">`).join('');
+  form.submit();
+}
+
+function cancelBulk() {
+  document.querySelectorAll('.ticket-cb').forEach(cb => { cb.checked = false; });
+  const cbAll = document.getElementById('cb-select-all');
+  if (cbAll) cbAll.checked = false;
+  onCbChange();
+}
+
+// ── Načíst starší tickety ──────────────────────────────────────────────────
+const _offsets = { tickets: 10, spam: 10 };
+
+async function loadMore(kind) {
+  const btn       = document.getElementById(`btn-more-${kind}`);
+  const countEl   = document.getElementById(`more-${kind}-count`);
+  const wrap      = document.getElementById(`more-${kind}-wrap`);
+  const listId    = kind === 'tickets' ? 'ticket-list' : 'spam-list';
+  const list      = document.getElementById(listId);
+  if (!btn || !list) return;
+
+  btn.disabled = true;
+  btn.style.opacity = '.5';
+
+  try {
+    const res  = await fetch(`/api/more_tickets?kind=${kind}&offset=${_offsets[kind]}&limit=10`,
+                             { headers: { 'X-CSRF-Token': CSRF_TOKEN } });
+    const data = await res.json();
+
+    data.items.forEach(item => {
+      const el = kind === 'tickets' ? _renderTicketRow(item) : _renderSpamRow(item);
+      list.appendChild(el);
+    });
+
+    _offsets[kind] += data.items.length;
+
+    if (!data.has_more) {
+      wrap.remove();
+    } else {
+      const remaining = data.total - _offsets[kind];
+      countEl.textContent = `${remaining} dalších`;
+      btn.disabled = false;
+      btn.style.opacity = '';
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    console.error(e);
+  }
+}
+
+function _statusInfo(status) {
+  const sl = (status || '').toLowerCase();
+  if (sl.includes('nov'))      return { cls: 'badge-nova',      dot: 'dot-nova',      key: 'nova' };
+  if (sl.includes('vyř') || sl.includes('vyr')) return { cls: 'badge-vyreseno', dot: 'dot-vyreseno', key: 'vyreseno' };
+  if (sl.includes('řeš') || sl.includes('res')) return { cls: 'badge-reseni',   dot: 'dot-reseni',   key: 'reseni' };
+  if (sl.includes('zamít') || sl.includes('zamit')) return { cls: 'badge-zamitnuto', dot: 'dot-zamitnuto', key: 'zamitnuto' };
+  return { cls: 'badge-reseni', dot: 'dot-reseni', key: 'reseni' };
+}
+
+function _prioChip(prio) {
+  if (!prio || prio === 'Střední') return '';
+  if (prio === 'Kritická') return `<span class="prio-critical">⚠ Kritická</span>`;
+  if (prio === 'Vysoká')   return `<span class="prio-high">Vysoká</span>`;
+  if (prio === 'Nízká')    return `<span class="prio-low">Nízká</span>`;
+  return '';
+}
+
+function _renderTicketRow(c) {
+  const si       = _statusInfo(c.status);
+  const date     = (c.date || '').slice(0, 16);
+  const name     = c.customer_name || c.customer_email || '';
+  const prio     = c.priority || 'Střední';
+  const assigned = c.assigned_to || '';
+  const assigneeShort = assigned ? assigned.split('@')[0] : '';
+  const searchText = [name, c.customer_email||'', c.subject||'', c.ticket_id, c.order_number||'', c.problem_summary||''].join(' ').toLowerCase();
+  const div  = document.createElement('a');
+  div.href   = `/complaint/${c.ticket_id}`;
+  div.className = 'ticket-row card';
+  div.dataset.status     = si.key;
+  div.dataset.cat        = c.category || '';
+  div.dataset.priority   = prio;
+  div.dataset.assigned   = assigned;
+  div.dataset.searchtext = searchText;
+  div.setAttribute('onclick', 'handleRowClick(event, this)');
+  div.innerHTML = `
+    <div class="cb-col" onclick="event.stopPropagation()">
+      <input type="checkbox" class="ticket-cb" value="${_esc(c.ticket_id)}" onchange="onCbChange()">
+    </div>
+    <div class="tc-main">
+      <div class="tc-top">
+        <span class="tc-name">${_esc(name)}</span>
+        <span class="tc-date-inline">${_esc(date)}</span>
+      </div>
+      <div class="tc-subject-main">${_esc(c.subject || '')}</div>
+      ${c.problem_summary ? `<div class="tc-summary">${_esc(c.problem_summary)}</div>` : ''}
+      <div class="tc-chips">
+        <span class="chip-id">${_esc(c.ticket_id)}</span>
+        ${c.category ? `<span class="cat-chip">${_esc(c.category)}</span>` : ''}
+        ${_prioChip(prio)}
+        ${assigned ? `<span class="assignee-chip">${_esc(assigneeShort)}</span>` : ''}
+        ${c.order_number ? `<span class="order-chip">#${_esc(c.order_number)}</span>` : ''}
+        ${c.auto_reply_sent ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(52,199,89,0.10);color:var(--green);border-radius:6px;font-size:11px;font-weight:600;">Auto-reply</span>` : ''}
+      </div>
+    </div>
+    <div class="tc-right">
+      ${c.customer_unread ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:#007AFF;color:#fff;border-radius:20px;font-size:11px;font-weight:700;">Odpověď</span>` : ''}
+      <span class="badge ${si.cls}"><span class="badge-dot ${si.dot}"></span>${_esc(c.status)}</span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>`;
+  return div;
+}
+
+function _renderSpamRow(c) {
+  const date = (c.date || '').slice(0, 16);
+  const a    = document.createElement('a');
+  a.href     = `/complaint/${c.ticket_id}`;
+  a.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(15,23,42,0.055);text-decoration:none;color:var(--text);transition:background 0.12s;';
+  a.onmouseover = () => a.style.background = 'rgba(0,0,0,0.03)';
+  a.onmouseout  = () => a.style.background = '';
+  const subj = (c.subject || '').slice(0, 60) + ((c.subject || '').length > 60 ? '…' : '');
+  a.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(subj)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:1px;">${_esc(c.customer_email || '')} · ${_esc(date)}</div>
+    </div>
+    <span style="font-size:11px;font-weight:600;padding:2px 8px;background:rgba(142,142,147,0.12);color:var(--muted);border-radius:6px;flex-shrink:0;">${_esc(c.ticket_id)}</span>`;
+  return a;
+}
+
+function _esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function analyzeAll() {
+  const btn = document.getElementById('btn-analyze-all');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = `<div class="dot-pulse"></div> Spouštím…`;
+  try {
+    await fetch('/api/analyze_all', { method: 'POST', headers: { 'X-CSRF-Token': CSRF_TOKEN } });
+    setTimeout(() => location.reload(), 4000);
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Chyba — zkus znovu';
+  }
+}
+
+
+</script>
+{% endblock %}
