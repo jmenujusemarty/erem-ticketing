@@ -54,7 +54,7 @@ app.secret_key = _secret
 
 # ── Session security ────────────────────────────────────────────────────────
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
 app.config['SESSION_COOKIE_SECURE']   = os.getenv('FLASK_ENV') != 'development'
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=31)
 
@@ -168,6 +168,12 @@ def _sanitize_html(html: str) -> str:
 def _sanitize_subject(s: str) -> str:
     """Odstraní CRLF z email předmětu — prevence header injection."""
     return re.sub(r'[\r\n\t]+', ' ', (s or '').strip())[:200]
+
+_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+
+def _validate_email(addr: str) -> bool:
+    """Ověří formát e-mailové adresy — prevence header injection."""
+    return bool(_EMAIL_RE.match((addr or '').strip()))
 
 # Jinja2 3.x odstranil test 'search' — přidáme zpět
 app.jinja_env.tests['search'] = lambda value, pattern: bool(re.search(pattern, str(value) if value else ''))
@@ -574,6 +580,9 @@ def send_email(to_email, subject, body_text, signature_html=None, body_html=None
     Jinak pošle plain text.
     """
     subject = _sanitize_subject(subject)
+    if not _validate_email(to_email):
+        _log.error(f"send_email: neplatná e-mailová adresa odmítnuta: '{str(to_email)[:80]}'")
+        return False
     try:
         if signature_html or body_html:
             # HTML část: buď přímý HTML z editoru, nebo konverze z plain textu
@@ -1384,8 +1393,11 @@ def _verify_firebase_token(id_token):
                 # Ověř že token byl vydán pro náš projekt
                 jwt_payload = _decode_jwt_payload(id_token)
                 token_aud = jwt_payload.get('aud', '')
-                if FIREBASE_PROJECT_ID and token_aud != FIREBASE_PROJECT_ID:
-                    _log.warning(f"Firebase JWT audience mismatch: got '{token_aud}', expected '{FIREBASE_PROJECT_ID}'")
+                if not FIREBASE_PROJECT_ID:
+                    _log.error("FIREBASE_PROJECT_ID není nastaven — nelze ověřit JWT audience. Auth odmítnuta.")
+                    return None
+                if token_aud != FIREBASE_PROJECT_ID:
+                    _log.warning(f"Firebase JWT audience mismatch: got '{token_aud[:20]}...', expected project ID")
                     return None
                 return users[0]  # {'email': ..., 'localId': ..., 'displayName': ...}
     except Exception as e:
@@ -1459,7 +1471,7 @@ def login():
             return redirect(url_for('login'))
         username = request.form.get('username')
         password = request.form.get('password')
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        if secrets.compare_digest(str(username), str(ADMIN_USERNAME)) and secrets.compare_digest(str(password), str(ADMIN_PASSWORD)):
             session['logged_in'] = True
             session['username'] = username
             session.permanent = True

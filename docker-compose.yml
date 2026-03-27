@@ -6,11 +6,18 @@ services:
     container_name: ticketing-app
     env_file:
       - .env
+    environment:
+      - FLASK_ENV=production
     volumes:
       - ./data:/app/data
     restart: unless-stopped
     networks:
       - proxy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
 networks:
   proxy:

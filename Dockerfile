@@ -7,7 +7,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/data
+# Bezpečnost: spouštěj jako non-root uživatel
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/data && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 ENV DATABASE=/app/data/complaints.db
 
