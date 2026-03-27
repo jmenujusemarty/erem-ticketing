@@ -1017,6 +1017,7 @@ def append_customer_reply(ticket_id, customer_email, body, timestamp, incoming_m
     conn.commit()
     conn.close()
     _log.info(f"Odpověď zákazníka přidána do {ticket_id}")
+    _brrr(f"💬 Zákazník odpověděl: {ticket_id} — {(ticket['subject'] or '')[:55]}")
     # Admin notifikace
     try:
         notify_email = get_config('admin_notify_email', '')
