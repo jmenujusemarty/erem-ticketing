@@ -642,7 +642,7 @@
   </style>
 
   {% if session.logged_in %}
-  <script>
+  <script nonce="{{ csp_nonce() }}">
   (function() {
     const toast = document.getElementById('notif-toast');
     let lastCount = null;

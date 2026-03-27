@@ -70,7 +70,7 @@
           style="min-height:58px;max-width:480px;padding:11px 14px;border:1px solid rgba(15,23,42,0.12);border-radius:var(--r-in);background:rgba(255,255,255,0.8);font-size:15px;font-family:inherit;outline:none;line-height:1.6;transition:border 0.15s;">{{ config.admin_signature | safe }}</div>
         <div style="margin-top:7px;font-size:12px;color:var(--muted);">Používá se ve všech odchozích e-mailech. V šabloně dostupný jako <code style="background:rgba(0,122,255,0.1);padding:1px 6px;border-radius:5px;font-family:monospace;">{admin_signature}</code> (plain text)</div>
       </div>
-      <script>
+      <script nonce="{{ csp_nonce() }}">
         document.addEventListener('DOMContentLoaded', function() {
           syncSigHidden();
           const ed = document.getElementById('sig_editor');
@@ -96,8 +96,9 @@
           }
           const text = prompt('Text odkazu (Enter = použij URL):', '') || url;
           document.getElementById('sig_editor').focus();
+          const _esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
           document.execCommand('insertHTML', false,
-            `<a href="${url}" style="color:#007AFF;text-decoration:none;">${text}</a>`);
+            `<a href="${_esc(url)}" style="color:#007AFF;text-decoration:none;">${_esc(text)}</a>`);
           syncSigHidden();
         }
         function insertSigColor() {
@@ -143,7 +144,7 @@
           </div>
         </div>
       </div>
-      <script>
+      <script nonce="{{ csp_nonce() }}">
         document.addEventListener('DOMContentLoaded', function() {
           syncTplHidden();
           const ed = document.getElementById('tpl_editor');
@@ -169,8 +170,9 @@
           }
           const text = prompt('Text odkazu (Enter = URL):', '') || url;
           document.getElementById('tpl_editor').focus();
+          const _esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
           document.execCommand('insertHTML', false,
-            `<a href="${url}" style="color:#007AFF;text-decoration:none;">${text}</a>`);
+            `<a href="${_esc(url)}" style="color:#007AFF;text-decoration:none;">${_esc(text)}</a>`);
           syncTplHidden();
         }
         function insertTplColor() {
@@ -348,7 +350,7 @@
 
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 function toggleKey() {
   const input = document.getElementById('gemini_api_key');
   input.type = input.type === 'password' ? 'text' : 'password';

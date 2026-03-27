@@ -3,7 +3,8 @@ erem ticketing
 Automatické zpracování reklamací z IMAP serveru se SQLite databází
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response, abort, g as _g
+import bleach as _bleach
 import imaplib
 import email
 from email.header import decode_header
@@ -58,6 +59,14 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
 app.config['SESSION_COOKIE_SECURE']   = os.getenv('FLASK_ENV') != 'development'
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=31)
 
+# ── CSP nonce ───────────────────────────────────────────────────────────────
+@app.before_request
+def _set_nonce():
+    """Generuje CSP nonce pro každý request."""
+    _g.csp_nonce = secrets.token_hex(16)
+
+app.jinja_env.globals['csp_nonce'] = lambda: getattr(_g, 'csp_nonce', '')
+
 # ── Security HTTP hlavičky ───────────────────────────────────────────────────
 @app.after_request
 def set_security_headers(response):
@@ -68,10 +77,11 @@ def set_security_headers(response):
     # HSTS — jen přes HTTPS
     if request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https':
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    # CSP — povolí inline skripty (potřebné pro stávající templates) ale blokuje nebezpečné věci
+    # CSP — nonce-based inline skripty
+    nonce = getattr(_g, 'csp_nonce', '')
     csp = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com "
+        f"script-src 'self' 'nonce-{nonce}' https://www.gstatic.com https://apis.google.com "
         "https://www.googleapis.com https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
@@ -85,34 +95,46 @@ def set_security_headers(response):
     response.headers['Content-Security-Policy'] = csp
     return response
 
-# ── Rate limiting (in-memory, per-IP) ──────────────────────────────────────
-_login_attempts: dict = {}   # ip -> [timestamp, ...]
-_LOGIN_MAX      = 5          # max pokusů
-_LOGIN_WINDOW   = 300        # sekund (5 minut)
+# ── Rate limiting (SQLite-backed, persistentní) ─────────────────────────────
+_LOGIN_MAX    = 5    # max pokusů
+_LOGIN_WINDOW = 300  # sekund (5 minut)
+_API_MAX      = 20
+_API_WINDOW   = 60
 
 def _check_rate_limit(ip: str) -> bool:
-    """Vrátí True pokud je IP blokována."""
+    """Vrátí True pokud je IP blokována (login). Persistentní přes SQLite."""
     now = time.time()
-    hits = [t for t in _login_attempts.get(ip, []) if now - t < _LOGIN_WINDOW]
-    _login_attempts[ip] = hits
-    if len(hits) >= _LOGIN_MAX:
-        return True
-    _login_attempts[ip].append(now)
+    key = f'login:{ip}'
+    try:
+        conn = get_db()
+        conn.execute('DELETE FROM rate_limits WHERE key=? AND ts < ?', (key, now - _LOGIN_WINDOW))
+        count = conn.execute('SELECT COUNT(*) FROM rate_limits WHERE key=?', (key,)).fetchone()[0]
+        if count >= _LOGIN_MAX:
+            conn.close()
+            return True
+        conn.execute('INSERT INTO rate_limits (key, ts) VALUES (?, ?)', (key, now))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        _log.warning(f'rate_limit DB error: {e}')
     return False
 
-# ── API rate limiting ────────────────────────────────────────────────────────
-_api_attempts: dict = {}
-_API_MAX = 20
-_API_WINDOW = 60
-
-def _check_api_rate_limit(key: str) -> bool:
-    """Vrátí True pokud je klíč (email/ip) blokován pro API."""
+def _check_api_rate_limit(key_str: str) -> bool:
+    """Vrátí True pokud je klíč blokován pro API. Persistentní přes SQLite."""
     now = time.time()
-    attempts = [t for t in _api_attempts.get(key, []) if now - t < _API_WINDOW]
-    if len(attempts) >= _API_MAX:
-        return True
-    attempts.append(now)
-    _api_attempts[key] = attempts
+    key = f'api:{key_str}'
+    try:
+        conn = get_db()
+        conn.execute('DELETE FROM rate_limits WHERE key=? AND ts < ?', (key, now - _API_WINDOW))
+        count = conn.execute('SELECT COUNT(*) FROM rate_limits WHERE key=?', (key,)).fetchone()[0]
+        if count >= _API_MAX:
+            conn.close()
+            return True
+        conn.execute('INSERT INTO rate_limits (key, ts) VALUES (?, ?)', (key, now))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        _log.warning(f'api_rate_limit DB error: {e}')
     return False
 
 # ── CSRF ochrana ────────────────────────────────────────────────────────────
@@ -145,24 +167,36 @@ def _global_csrf_check():
         flash('Neplatný požadavek (CSRF). Zkus to znovu.', 'error')
         return redirect(request.referrer or url_for('index'))
 
-# ── HTML sanitizace (robustní whitelist) ────────────────────────────────────
+# ── HTML sanitizace (bleach whitelist) ──────────────────────────────────────
+# Whitelist tagů a atributů pro bleach sanitizaci
+_BLEACH_TAGS = [
+    'b', 'i', 'u', 'strong', 'em', 'br', 'p', 'div', 'span',
+    'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'pre', 'code'
+]
+_BLEACH_ATTRS = {
+    'a':    ['href', 'title', 'style'],
+    'span': ['style'],
+    'p':    ['style'],
+    'div':  ['style'],
+    'h1':   ['style'], 'h2': ['style'], 'h3': ['style'], 'h4': ['style'],
+}
+_BLEACH_STYLES = [
+    'color', 'background-color', 'font-weight', 'font-style',
+    'text-decoration', 'font-size', 'text-align'
+]
+
 def _sanitize_rich_html(content: str) -> str:
-    """Povolí pouze bezpečné HTML tagy pro rich text editor."""
+    """Povolí pouze bezpečné HTML tagy pro rich text editor (bleach whitelist)."""
     if not content:
         return content
-    # Odstranit nebezpečné tagy a atributy
-    content = re.sub(r'<script[^>]*>.*?</script>', '', content, flags=re.DOTALL | re.IGNORECASE)
-    content = re.sub(r'<style[^>]*>.*?</style>', '', content, flags=re.DOTALL | re.IGNORECASE)
-    content = re.sub(r'on\w+\s*=\s*["\'][^"\']*["\']', '', content, flags=re.IGNORECASE)
-    content = re.sub(r'on\w+\s*=\s*\S+', '', content, flags=re.IGNORECASE)
-    content = re.sub(r'javascript\s*:', 'removed:', content, flags=re.IGNORECASE)
-    content = re.sub(r'data\s*:', 'removed:', content, flags=re.IGNORECASE)
-    content = re.sub(r'<(img|svg|iframe|object|embed|form|input|button)[^>]*>', '', content, flags=re.IGNORECASE)
-    return content
+    return _bleach.clean(
+        content,
+        tags=_BLEACH_TAGS,
+        attributes=_BLEACH_ATTRS,
+        strip=True
+    )
 
-# Zachováme alias pro zpětnou kompatibilitu
 def _sanitize_html(html: str) -> str:
-    """Odstraní nebezpečné tagy, ponechá základní formátování."""
     return _sanitize_rich_html(html)
 
 def _sanitize_subject(s: str) -> str:
@@ -388,6 +422,17 @@ def init_db():
     conn.execute('INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)', ('gemini_api_key', os.getenv('GEMINI_API_KEY', '')))
     conn.execute('INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)', ('sla_days', '3'))
     conn.execute('INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)', ('admin_signature', 'Martin z eremu'))
+    # Tabulka rate limitů (persistentní)
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS rate_limits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT NOT NULL,
+            ts REAL NOT NULL
+        )
+    ''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_rl_key_ts ON rate_limits(key, ts)')
+    # Smaž staré záznamy (cleanup při startu)
+    conn.execute('DELETE FROM rate_limits WHERE ts < ?', (time.time() - 3600,))
     conn.commit()
     global _last_complaint_count
     try:

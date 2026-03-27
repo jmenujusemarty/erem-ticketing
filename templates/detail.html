@@ -446,7 +446,7 @@
 
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // CSRF token pro AJAX requesty
 const CSRF_TOKEN = '{{ csrf_token() }}';
 
@@ -520,8 +520,9 @@ function insertReplyLink() {
   }
   const text = prompt('Text odkazu (Enter = použij URL):', '') || url;
   document.getElementById('reply_editor').focus();
+  const _esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
   document.execCommand('insertHTML', false,
-    `<a href="${url}" style="color:#007AFF;text-decoration:none;">${text}</a>`);
+    `<a href="${_esc(url)}" style="color:#007AFF;text-decoration:none;">${_esc(text)}</a>`);
   syncReplyHidden();
 }
 function insertReplyColor() {

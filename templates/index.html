@@ -599,7 +599,7 @@
 
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 const CSRF_TOKEN = '{{ csrf_token() }}';
 const CURRENT_EMAIL = '{{ current_email }}';
 
