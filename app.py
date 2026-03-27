@@ -42,6 +42,20 @@ import hashlib
 from functools import wraps
 from dotenv import load_dotenv
 import json as _json_module
+import urllib.request
+import urllib.parse
+
+# ── Push notifikace (brrr.now) ───────────────────────────────────────────────
+_BRRR_URL = 'https://api.brrr.now/v1/br_usr_ff03f439f5f08b673d7229f8c0b21c832b5c4528d090cedb8f8a9bc5e379044a'
+
+def _brrr_notify(ticket_id: str, customer_email: str, subject: str):
+    """Odešle push notifikaci přes brrr.now. Voláno v background threadu."""
+    try:
+        msg = f"Nová reklamace {ticket_id} od {customer_email}: {subject[:60]}"
+        url = _BRRR_URL + '?' + urllib.parse.urlencode({'message': msg})
+        urllib.request.urlopen(url, timeout=5)
+    except Exception as e:
+        _log.warning(f'brrr notify failed: {e}')
 
 load_dotenv()
 
@@ -599,6 +613,12 @@ def save_to_db(ticket_id, customer_email, subject, body, customer_name=None, sta
         global _last_complaint_count
         with _complaint_count_lock:
             _last_complaint_count += 1
+        # Push notifikace — neblokuje, posílá se v pozadí
+        threading.Thread(
+            target=_brrr_notify,
+            args=(ticket_id, customer_email, subject),
+            daemon=True
+        ).start()
         return True
     except Exception as e:
         _log.error(f"Chyba při ukládání do DB: {e}")
