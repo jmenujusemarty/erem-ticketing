@@ -135,8 +135,9 @@ def set_security_headers(response):
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
         "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com "
-        "https://generativelanguage.googleapis.com; "
-        "frame-src https://accounts.google.com; "
+        "https://www.googleapis.com https://firebase.googleapis.com https://firebaseinstallations.googleapis.com "
+        "https://generativelanguage.googleapis.com https://api.brrr.now; "
+        "frame-src https://accounts.google.com https://*.firebaseapp.com https://*.firebase.com; "
         "object-src 'none'; "
         "base-uri 'self'"
     )
