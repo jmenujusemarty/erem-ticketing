@@ -125,19 +125,19 @@ def set_security_headers(response):
     # HSTS — jen přes HTTPS
     if request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https':
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    # CSP — unsafe-inline nutné kvůli onclick= handlerům a Firebase SDK
-    nonce = getattr(_g, 'csp_nonce', '')
+    # CSP — unsafe-inline (nonce by unsafe-inline potlačil, proto nonce nepoužíváme v script-src)
     csp = (
         "default-src 'self'; "
-        f"script-src 'self' 'unsafe-inline' 'nonce-{nonce}' https://www.gstatic.com https://apis.google.com "
+        "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com "
         "https://www.googleapis.com https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
         "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com "
-        "https://www.googleapis.com https://firebase.googleapis.com https://firebaseinstallations.googleapis.com "
+        "https://www.googleapis.com https://www.gstatic.com https://firebase.googleapis.com "
+        "https://firebaseinstallations.googleapis.com "
         "https://generativelanguage.googleapis.com https://api.brrr.now; "
-        "frame-src https://accounts.google.com https://*.firebaseapp.com https://*.firebase.com; "
+        "frame-src https://accounts.google.com https://*.firebaseapp.com; "
         "object-src 'none'; "
         "base-uri 'self'"
     )
