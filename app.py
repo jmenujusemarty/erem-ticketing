@@ -125,19 +125,12 @@ def set_security_headers(response):
     # HSTS — jen přes HTTPS
     if request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https':
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    # CSP — login stránka potřebuje unsafe-inline (Firebase injektuje inline skripty)
+    # CSP — unsafe-inline nutné kvůli onclick= handlerům a Firebase SDK
     nonce = getattr(_g, 'csp_nonce', '')
-    is_login = request.path in ('/login', '/api/firebase_auth')
-    script_src = (
-        f"'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com "
-        "https://www.googleapis.com https://cdn.jsdelivr.net"
-        if is_login else
-        f"'self' 'nonce-{nonce}' https://www.gstatic.com https://apis.google.com "
-        "https://www.googleapis.com https://cdn.jsdelivr.net"
-    )
     csp = (
         "default-src 'self'; "
-        f"script-src {script_src}; "
+        f"script-src 'self' 'unsafe-inline' 'nonce-{nonce}' https://www.gstatic.com https://apis.google.com "
+        "https://www.googleapis.com https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
