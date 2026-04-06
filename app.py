@@ -296,6 +296,10 @@ SMTP_FROM_NAME = os.getenv('SMTP_FROM_NAME', 'erem')
 
 CHECK_INTERVAL = int(os.getenv('CHECK_INTERVAL', 60))  # sekund
 
+# IMAP pro vratky@eremvole.cz (Zásilkovna)
+RETURNS_IMAP_EMAIL    = os.getenv('RETURNS_IMAP_EMAIL', '')
+RETURNS_IMAP_PASSWORD = os.getenv('RETURNS_IMAP_PASSWORD', '')
+
 # Admin přihlášení
 ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
@@ -485,6 +489,26 @@ def init_db():
     conn.execute('CREATE INDEX IF NOT EXISTS idx_rl_key_ts ON rate_limits(key, ts)')
     # Smaž staré záznamy (cleanup při startu)
     conn.execute('DELETE FROM rate_limits WHERE ts < ?', (time.time() - 3600,))
+    # Tabulka vratek ze Zásilkovny
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS zasilkovna_returns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            received_at TEXT NOT NULL,
+            branch TEXT,
+            pickup_password TEXT,
+            tracking_number TEXT NOT NULL,
+            order_number TEXT,
+            recipient TEXT,
+            note TEXT,
+            status TEXT DEFAULT 'Čeká',
+            deadline_at TEXT,
+            msg_id TEXT
+        )
+    ''')
+    try:
+        conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_zr_tracking ON zasilkovna_returns(tracking_number)')
+    except Exception:
+        pass
     conn.commit()
     global _last_complaint_count
     try:
@@ -1156,11 +1180,138 @@ def email_checker_loop():
     while True:
         _log.info(f"Kontroluji e-maily... {_now()}")
         check_emails()
+        check_returns_email()
         time.sleep(CHECK_INTERVAL)
 
 def start_email_checker():
     checker_thread = threading.Thread(target=email_checker_loop, daemon=True)
     checker_thread.start()
+
+
+def parse_zasilkovna_email(body: str) -> dict:
+    """Parsuje tělo e-mailu ze Zásilkovny. Vrátí dict s klíči: branch, password, packages (list)."""
+    result = {'branch': '', 'password': '', 'packages': []}
+
+    # Pobočka
+    branch_match = re.search(r'Na pobočce\s+(.+?)\s+jsou', body, re.IGNORECASE)
+    if branch_match:
+        result['branch'] = branch_match.group(1).strip()
+
+    # Heslo
+    pwd_match = re.search(r'Heslo pro převzetí zásilek je\s+([A-Z0-9]+)', body, re.IGNORECASE)
+    if pwd_match:
+        result['password'] = pwd_match.group(1).strip()
+
+    # Zásilky — každý řádek tvaru: "Z 123 4567 890: č. obj. XXX, příjemce Jméno"
+    for line in body.splitlines():
+        pkg_match = re.match(r'(Z[\s\d]+\d)\s*:\s*(.+)', line.strip())
+        if not pkg_match:
+            continue
+        tracking = re.sub(r'\s+', ' ', pkg_match.group(1).strip())
+        rest = pkg_match.group(2).strip()
+
+        order = ''
+        obj_match = re.search(r'č\.\s*obj\.\s*([\w\-]+)', rest, re.IGNORECASE)
+        if obj_match:
+            order = obj_match.group(1)
+
+        recipient = ''
+        rec_match = re.search(r'příjemce\s+(.+)', rest, re.IGNORECASE)
+        if rec_match:
+            recipient = rec_match.group(1).strip()
+
+        # Note = zbytek za order, před příjemce (nebo celý rest pokud není order)
+        note = rest
+        if obj_match:
+            note = rest[obj_match.end():].strip().lstrip(',').strip()
+        if rec_match:
+            note = note[:note.lower().find('příjemce')].strip().rstrip(',').strip()
+
+        result['packages'].append({
+            'tracking': tracking,
+            'order': order,
+            'recipient': recipient,
+            'note': note,
+        })
+
+    return result
+
+
+def check_returns_email():
+    """Kontroluje e-maily na vratky@eremvole.cz a ukládá zásilkovna vratky."""
+    if not RETURNS_IMAP_EMAIL or not RETURNS_IMAP_PASSWORD:
+        return
+    mail = None
+    try:
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
+        mail.login(RETURNS_IMAP_EMAIL, RETURNS_IMAP_PASSWORD)
+        mail.select('INBOX')
+
+        since = (datetime.datetime.now(tz=_PRAGUE) - datetime.timedelta(days=60)).strftime('%d-%b-%Y')
+        status, messages = mail.search(None, f'SINCE {since}')
+        if status != 'OK':
+            return
+
+        conn = get_db()
+        existing_msg_ids = {r[0] for r in conn.execute('SELECT msg_id FROM zasilkovna_returns WHERE msg_id IS NOT NULL').fetchall()}
+        new_count = 0
+
+        for email_id in messages[0].split():
+            status2, msg_data = mail.fetch(email_id, '(RFC822)')
+            if status2 != 'OK':
+                continue
+            msg = email.message_from_bytes(msg_data[0][1])
+            msg_id = (msg.get('Message-ID') or '').strip()
+
+            if msg_id and msg_id in existing_msg_ids:
+                continue
+
+            # Zkontroluj že je to ze Zásilkovny
+            from_header = msg.get('From', '').lower()
+            if 'zasilkovna' not in from_header and 'packeta' not in from_header:
+                continue
+
+            body = get_email_body(msg)
+            if not body or 'pobočce' not in body.lower():
+                continue
+
+            parsed = parse_zasilkovna_email(body)
+            if not parsed['packages']:
+                continue
+
+            received_at = _now()
+            # Deadline = 7 dní od přijetí
+            deadline = (datetime.datetime.now(tz=_PRAGUE) + datetime.timedelta(days=7)).strftime('%d.%m.%Y')
+
+            for pkg in parsed['packages']:
+                try:
+                    conn.execute(
+                        '''INSERT OR IGNORE INTO zasilkovna_returns
+                           (received_at, branch, pickup_password, tracking_number, order_number,
+                            recipient, note, status, deadline_at, msg_id)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, 'Čeká', ?, ?)''',
+                        (received_at, parsed['branch'], parsed['password'],
+                         pkg['tracking'], pkg['order'], pkg['recipient'],
+                         pkg['note'], deadline, msg_id)
+                    )
+                    new_count += 1
+                except Exception as e:
+                    _log.warning(f"Zásilkovna insert error: {e}")
+
+        conn.commit()
+        conn.close()
+        if new_count > 0:
+            _brrr(f"📦 {new_count} nových vratek ze Zásilkovny")
+            _log.info(f"Zásilkovna: uloženo {new_count} nových zásilek")
+
+    except Exception as e:
+        _log.error(f"Chyba při kontrole vratek: {e}")
+    finally:
+        if mail:
+            try: mail.close()
+            except Exception: pass
+            try: mail.logout()
+            except Exception: pass
 
 
 # ─── Připomínky ────────────────────────────────────────────────────────────
@@ -1963,6 +2114,33 @@ def stats():
                            daily_labels=daily_labels,
                            daily_counts=daily_counts,
                            admin_perf=admin_perf)
+
+
+@app.route('/returns')
+@login_required
+def returns():
+    """Přehled vratek ze Zásilkovny"""
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT * FROM zasilkovna_returns ORDER BY received_at DESC'
+    ).fetchall()
+    conn.close()
+    items = [dict(r) for r in rows]
+    return render_template('returns.html', items=items)
+
+
+@app.route('/returns/update/<int:item_id>', methods=['POST'])
+@login_required
+def returns_update(item_id):
+    """Aktualizace statusu vratky"""
+    new_status = request.form.get('status', '')
+    if new_status not in ('Čeká', 'Vyzvednuto', 'Propadlé'):
+        abort(400)
+    conn = get_db()
+    conn.execute('UPDATE zasilkovna_returns SET status=? WHERE id=?', (new_status, item_id))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('returns'))
 
 
 # ─── Nastavení ─────────────────────────────────────────────────────────────

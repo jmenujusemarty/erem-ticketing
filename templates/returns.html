@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Vratky Zásilkovna — erem ticketing{% endblock %}
+{% block body %}
+<div class="page">
+<div class="page-header rise">
+  <div>
+    <div class="page-title">📦 Vratky Zásilkovna</div>
+    <div class="page-sub">Nevyzvednuté zásilky na pobočkách</div>
+  </div>
+</div>
+
+{% set waiting = items | selectattr('status', 'equalto', 'Čeká') | list %}
+{% set picked  = items | selectattr('status', 'equalto', 'Vyzvednuto') | list %}
+{% set expired = items | selectattr('status', 'equalto', 'Propadlé') | list %}
+
+<div class="stats-grid rise rise-1" style="margin-bottom:24px;">
+  <div class="stat-card card">
+    <div class="stat-label">Čeká na vyzvednutí</div>
+    <div class="stat-num" style="color:var(--orange);">{{ waiting|length }}</div>
+  </div>
+  <div class="stat-card card">
+    <div class="stat-label">Vyzvednuto</div>
+    <div class="stat-num" style="color:var(--green);">{{ picked|length }}</div>
+  </div>
+  <div class="stat-card card">
+    <div class="stat-label">Propadlé</div>
+    <div class="stat-num" style="color:var(--red);">{{ expired|length }}</div>
+  </div>
+  <div class="stat-card card">
+    <div class="stat-label">Celkem zásilek</div>
+    <div class="stat-num">{{ items|length }}</div>
+  </div>
+</div>
+
+{% if not items %}
+<div class="card p-5 rise rise-2" style="text-align:center;color:var(--muted);padding:48px;">
+  <div style="font-size:40px;margin-bottom:12px;">📭</div>
+  <div style="font-size:16px;font-weight:600;">Žádné vratky</div>
+  <div style="font-size:14px;margin-top:4px;">Zásilkovna ještě neposlala žádné oznámení.</div>
+</div>
+{% else %}
+<div style="display:flex;flex-direction:column;gap:12px;">
+{% for item in items %}
+<div class="card p-4 rise rise-2" style="border-left:4px solid {% if item.status == 'Čeká' %}var(--orange){% elif item.status == 'Vyzvednuto' %}var(--green){% else %}var(--red){% endif %};">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:240px;">
+      <!-- Tracking + order -->
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+        <span style="font-size:18px;font-weight:700;font-family:monospace;letter-spacing:1px;">{{ item.tracking_number }}</span>
+        {% if item.order_number %}
+        <span class="badge" style="background:rgba(0,122,255,0.1);color:var(--accent);font-size:12px;">č. obj. {{ item.order_number }}</span>
+        {% endif %}
+        <span class="badge {% if item.status == 'Čeká' %}badge-nova{% elif item.status == 'Vyzvednuto' %}badge-vyreseno{% else %}badge-zamitnuto{% endif %}">{{ item.status }}</span>
+      </div>
+      <!-- Příjemce + poznámka -->
+      {% if item.recipient %}
+      <div style="font-size:14px;color:var(--text);margin-bottom:4px;">👤 <strong>{{ item.recipient }}</strong></div>
+      {% endif %}
+      {% if item.note %}
+      <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">{{ item.note }}</div>
+      {% endif %}
+      <!-- Pobočka -->
+      <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">📍 {{ item.branch or '—' }}</div>
+      <!-- Heslo -->
+      {% if item.pickup_password %}
+      <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">
+        🔑 Heslo: <code onclick="navigator.clipboard.writeText('{{ item.pickup_password }}');this.style.background='rgba(52,199,89,0.15)';" style="font-family:monospace;font-size:13px;font-weight:700;background:rgba(0,122,255,0.08);padding:2px 8px;border-radius:6px;cursor:pointer;" title="Klikni pro kopírování">{{ item.pickup_password }}</code>
+      </div>
+      {% endif %}
+      <!-- Daty -->
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;">
+        Přijato: {{ item.received_at }}
+        {% if item.deadline_at %}
+        · Deadline: <span style="color:{% if item.status == 'Čeká' %}var(--red){% else %}var(--muted){% endif %};font-weight:600;">{{ item.deadline_at }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <!-- Změna statusu -->
+    <form method="POST" action="/returns/update/{{ item.id }}" style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <select name="status" class="form-input" style="font-size:13px;padding:6px 10px;min-width:140px;">
+        <option {% if item.status == 'Čeká' %}selected{% endif %}>Čeká</option>
+        <option {% if item.status == 'Vyzvednuto' %}selected{% endif %}>Vyzvednuto</option>
+        <option {% if item.status == 'Propadlé' %}selected{% endif %}>Propadlé</option>
+      </select>
+      <button type="submit" class="btn btn-sm btn-secondary">Uložit</button>
+    </form>
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+</div>
+{% endblock %}
