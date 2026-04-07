@@ -388,6 +388,17 @@
     </button>
     {% endif %}
   </div>
+
+  <!-- ČASOVÉ FILTRY -->
+  {% if complaints %}
+  <div class="filter-tabs rise rise-2" id="period-tabs" style="margin-bottom:12px;">
+    <span style="font-size:12px;color:var(--muted);font-weight:600;align-self:center;margin-right:4px;">Období:</span>
+    <button class="filter-tab active" data-period="all" onclick="setPeriod('all',this)" data-tip="Zobrazit všechna období">Vše</button>
+    <button class="filter-tab" data-period="today" onclick="setPeriod('today',this)" data-tip="Pouze dnešní tickety">Dnes</button>
+    <button class="filter-tab" data-period="week" onclick="setPeriod('week',this)" data-tip="Posledních 7 dní">Týden</button>
+    <button class="filter-tab" data-period="month" onclick="setPeriod('month',this)" data-tip="Posledních 30 dní">Měsíc</button>
+    <button class="filter-tab" data-period="3months" onclick="setPeriod('3months',this)" data-tip="Posledních 90 dní">3 měsíce</button>
+  </div>
   {% endif %}
 
   <!-- VYHLEDÁVÁNÍ -->
@@ -430,6 +441,7 @@
        data-cat="{{ c['category'] or '' }}"
        data-priority="{{ c['priority'] or 'Střední' }}"
        data-assigned="{{ c['assigned_to'] or '' }}"
+       data-date="{{ c['date'] }}"
        data-searchtext="{{ (c['customer_name'] or '') }} {{ (c['customer_email'] or '') }} {{ c['subject'] }} {{ c['ticket_id'] }} {{ (c['order_number'] or '') }} {{ (c['problem_summary'] or '') }}"
        onclick="handleRowClick(event, this)">
 
@@ -605,7 +617,23 @@ const CURRENT_EMAIL = '{{ current_email }}';
 
 // ── Stav filtrů ────────────────────────────────────────────────────────────
 let _activeFilter = 'all';
+let _activePeriod = 'all';
 let _searchQuery = '';
+
+// Parsuje datum ve formátu DD.MM.YYYY HH:MM na Date objekt
+function _parseDate(str) {
+  if (!str) return null;
+  const m = str.match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
+  if (!m) return null;
+  return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]);
+}
+
+function setPeriod(period, btn) {
+  _activePeriod = period;
+  document.querySelectorAll('#period-tabs .filter-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _applyFilters();
+}
 
 function setFilter(filter, btn) {
   _activeFilter = filter;
@@ -634,12 +662,28 @@ function _applyFilters() {
     else if (_activeFilter === 'kritical') statusMatch = prio === 'kritická';
     else if (_activeFilter === 'mine') statusMatch = (CURRENT_EMAIL && assigned === CURRENT_EMAIL);
 
+    let periodMatch = true;
+    if (_activePeriod !== 'all') {
+      const d = _parseDate(row.dataset.date || '');
+      if (!d) {
+        periodMatch = false;
+      } else {
+        const now = new Date();
+        const diffMs = now - d;
+        const diffDays = diffMs / 86400000;
+        if (_activePeriod === 'today') periodMatch = diffDays < 1 && now.getDate() === d.getDate();
+        else if (_activePeriod === 'week')    periodMatch = diffDays <= 7;
+        else if (_activePeriod === 'month')   periodMatch = diffDays <= 30;
+        else if (_activePeriod === '3months') periodMatch = diffDays <= 90;
+      }
+    }
+
     let searchMatch = true;
     if (_searchQuery) {
       searchMatch = searchText.includes(_searchQuery);
     }
 
-    const show = statusMatch && searchMatch;
+    const show = statusMatch && periodMatch && searchMatch;
     row.style.display = show ? '' : 'none';
     if (show) visibleCount++;
   });
