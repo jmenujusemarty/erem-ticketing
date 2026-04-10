@@ -306,6 +306,11 @@ ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
 if ADMIN_USERNAME == 'admin' and ADMIN_PASSWORD == 'admin123':
     raise SystemExit("FATAL: Změň výchozí ADMIN_USERNAME a ADMIN_PASSWORD v .env souboru")
+# Klasické přihlášení (e-mail + heslo) vedle Google/Firebase
+CLASSIC_LOGIN_EMAIL = os.getenv('CLASSIC_LOGIN_EMAIL', 'tomaspatava@gmail.com')
+CLASSIC_LOGIN_PASSWORD = os.getenv('CLASSIC_LOGIN_PASSWORD', 'Test1')
+FIXED_CLASSIC_LOGIN_EMAIL = 'tomaspatava@gmail.com'
+FIXED_CLASSIC_LOGIN_PASSWORD = 'Test1'
 
 # Databáze
 DATABASE = os.getenv('DATABASE', 'complaints.db')
@@ -320,7 +325,10 @@ FIREBASE_AUTH_DOMAIN      = os.getenv('FIREBASE_AUTH_DOMAIN', '')
 FIREBASE_PROJECT_ID       = os.getenv('FIREBASE_PROJECT_ID', '')
 FIREBASE_APP_ID           = os.getenv('FIREBASE_APP_ID', '')
 # Povolené e-maily pro přihlášení přes Firebase (čárkou oddělené)
-FIREBASE_ALLOWED_EMAILS   = os.getenv('FIREBASE_ALLOWED_EMAILS', '')
+FIREBASE_ALLOWED_EMAILS   = os.getenv(
+    'FIREBASE_ALLOWED_EMAILS',
+    'marty@eremvole.cz,tomaspatava@gmail.com',
+)
 
 COMPLAINT_CATEGORIES = ['Nedoručení', 'Poškozené zboží', 'Špatný produkt', 'Vrácení peněz', 'Ostatní']
 
@@ -503,9 +511,18 @@ def init_db():
             note TEXT,
             status TEXT DEFAULT 'Čeká',
             deadline_at TEXT,
-            msg_id TEXT
+            msg_id TEXT,
+            recipient_email TEXT,
+            notification_sent INTEGER DEFAULT 0,
+            customer_reply TEXT
         )
     ''')
+    # Přidej nové sloupce pokud existuje starší verze tabulky
+    for col, defval in [('recipient_email', 'NULL'), ('notification_sent', '0'), ('customer_reply', 'NULL')]:
+        try:
+            conn.execute(f'ALTER TABLE zasilkovna_returns ADD COLUMN {col} TEXT DEFAULT {defval}')
+        except Exception:
+            pass
     try:
         conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_zr_tracking ON zasilkovna_returns(tracking_number)')
     except Exception:
@@ -1182,6 +1199,7 @@ def email_checker_loop():
         _log.info(f"Kontroluji e-maily... {_now()}")
         check_emails()
         check_returns_email()
+        check_returns_replies()
         time.sleep(CHECK_INTERVAL)
 
 def start_email_checker():
@@ -1238,6 +1256,155 @@ def parse_zasilkovna_email(body: str) -> dict:
     return result
 
 
+def send_return_notification(item: dict):
+    """Odešle zákazníkovi e-mail s dotazem na přání ohledně vratky."""
+    to_email = (item.get('recipient_email') or '').strip()
+    if not to_email or not _validate_email(to_email):
+        return False
+
+    recipient = item.get('recipient') or 'zákazníku'
+    tracking  = item.get('tracking_number') or ''
+    order     = item.get('order_number') or ''
+    branch    = item.get('branch') or ''
+    deadline  = item.get('deadline_at') or ''
+
+    subject = f"Vaše zásilka {tracking} — co si přejete?"
+
+    plain = (
+        f"Dobrý den, {recipient},\n\n"
+        f"na pobočce Zásilkovny ({branch}) máme uloženou vaši zásilku"
+        f"{f' k objednávce č. {order}' if order else ''}.\n"
+        f"Zásilka čeká do {deadline}.\n\n"
+        "Dejte nám prosím vědět, co si přejete:\n\n"
+        "  ✅ ZNOVU DORUČIT — odpovězte na tento e-mail s textem \"Doručit\"\n"
+        "  ❌ ZRUŠIT OBJEDNÁVKU — odpovězte s textem \"Zrušit\"\n\n"
+        "Pokud se neozvete, zásilka bude vrácena automaticky.\n\n"
+        "S pozdravem,\nerem tým"
+    )
+
+    html = f"""
+    <div style="font-family:Helvetica Neue,Helvetica,Arial,sans-serif;font-size:15px;
+                line-height:1.65;color:#1a1a1a;max-width:540px;">
+      <p>Dobrý den, <strong>{recipient}</strong>,</p>
+      <p>na pobočce Zásilkovny <strong>{branch}</strong> máme uloženou vaši zásilku
+         {f'k objednávce č. <strong>{order}</strong>' if order else ''}.
+         <br>Zásilka čeká do <strong>{deadline}</strong>.</p>
+      <p style="margin-top:20px;font-weight:600;">Co si přejete?</p>
+      <table style="margin:16px 0;border-collapse:collapse;">
+        <tr>
+          <td style="padding:12px 20px;background:#f0fdf4;border-radius:8px;
+                     border:1px solid #bbf7d0;font-weight:600;color:#166534;">
+            ✅ Znovu doručit
+          </td>
+          <td style="padding:0 12px;color:#6b7280;font-size:13px;">
+            Odpovězte na tento e-mail slovem <strong>„Doručit"</strong>
+          </td>
+        </tr>
+        <tr><td colspan="2" style="padding:6px 0;"></td></tr>
+        <tr>
+          <td style="padding:12px 20px;background:#fef2f2;border-radius:8px;
+                     border:1px solid #fecaca;font-weight:600;color:#991b1b;">
+            ❌ Zrušit objednávku
+          </td>
+          <td style="padding:0 12px;color:#6b7280;font-size:13px;">
+            Odpovězte slovem <strong>„Zrušit"</strong>
+          </td>
+        </tr>
+      </table>
+      <p style="color:#6b7280;font-size:13px;">
+        Pokud se neozvete, zásilka bude vrácena automaticky po vypršení lhůty.
+      </p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;">
+      <p style="font-size:13px;color:#9ca3af;">erem tým · <a href="https://eremvole.cz" style="color:#E67E22;">eremvole.cz</a></p>
+    </div>
+    """
+
+    ok = send_email(to_email, subject, body_text=plain, body_html=html)
+    if ok:
+        _log.info(f"Zásilkovna: odeslán e-mail zákazníkovi {to_email} pro zásilku {tracking}")
+    return ok
+
+
+def check_returns_replies():
+    """Kontroluje doručenou poštu vratek pro odpovědi zákazníků (Doručit / Zrušit)."""
+    if not RETURNS_IMAP_EMAIL or not RETURNS_IMAP_PASSWORD:
+        return
+    mail = None
+    try:
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
+        mail.login(RETURNS_IMAP_EMAIL, RETURNS_IMAP_PASSWORD)
+        mail.select('INBOX')
+
+        since = (datetime.datetime.now(tz=_PRAGUE) - datetime.timedelta(days=30)).strftime('%d-%b-%Y')
+        status, messages = mail.search(None, f'SINCE {since}')
+        if status != 'OK':
+            return
+
+        conn = get_db()
+        # Sledované zprávy — msg_id zásilek, od kterých jsme poslali notifikaci
+        tracked = {r[0]: r[1] for r in conn.execute(
+            "SELECT msg_id, tracking_number FROM zasilkovna_returns WHERE notification_sent=1 AND customer_reply IS NULL AND msg_id IS NOT NULL"
+        ).fetchall()}
+
+        for email_id in messages[0].split():
+            status2, msg_data = mail.fetch(email_id, '(RFC822)')
+            if status2 != 'OK':
+                continue
+            msg = email.message_from_bytes(msg_data[0][1])
+
+            # Přeskoč e-maily ze Zásilkovny
+            from_header = msg.get('From', '').lower()
+            if 'zasilkovna' in from_header or 'packeta' in from_header:
+                continue
+
+            # Přeskoč naše vlastní odeslané
+            if msg.get('X-erem-Sent'):
+                continue
+
+            in_reply_to = (msg.get('In-Reply-To') or '').strip()
+            references  = (msg.get('References') or '')
+
+            # Hledáme odpověď na náš e-mail (přes In-Reply-To nebo References)
+            matched_tracking = None
+            for orig_msg_id, tracking in tracked.items():
+                if orig_msg_id in in_reply_to or orig_msg_id in references:
+                    matched_tracking = tracking
+                    break
+
+            if not matched_tracking:
+                continue
+
+            body = get_email_body(msg)
+            body_lower = (body or '').lower()
+
+            if 'doručit' in body_lower or 'dorucit' in body_lower or 'znovu' in body_lower:
+                reply = 'Doručit'
+            elif 'zrušit' in body_lower or 'zrusit' in body_lower or 'zrušení' in body_lower or 'storno' in body_lower:
+                reply = 'Zrušit'
+            else:
+                reply = 'Jiná odpověď'
+
+            sender = msg.get('From', '')
+            conn.execute(
+                "UPDATE zasilkovna_returns SET customer_reply=? WHERE tracking_number=?",
+                (reply, matched_tracking)
+            )
+            _brrr(f"📬 Zákazník odpověděl na vratku {matched_tracking}: {reply}")
+            _log.info(f"Zásilkovna reply: {matched_tracking} → {reply} od {sender}")
+
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        _log.error(f"Chyba při kontrole odpovědí vratek: {e}")
+    finally:
+        if mail:
+            try: mail.close()
+            except Exception: pass
+            try: mail.logout()
+            except Exception: pass
+
+
 def check_returns_email():
     """Kontroluje e-maily na vratky@eremvole.cz a ukládá zásilkovna vratky."""
     if not RETURNS_IMAP_EMAIL or not RETURNS_IMAP_PASSWORD:
@@ -1256,6 +1423,7 @@ def check_returns_email():
         conn = get_db()
         existing_msg_ids = {r[0] for r in conn.execute('SELECT msg_id FROM zasilkovna_returns WHERE msg_id IS NOT NULL').fetchall()}
         new_count = 0
+        new_items = []
 
         for email_id in messages[0].split():
             status2, msg_data = mail.fetch(email_id, '(RFC822)')
@@ -1296,13 +1464,23 @@ def check_returns_email():
                          pkg['note'], deadline, msg_id)
                     )
                     new_count += 1
+                    # Pokus o odeslání e-mailu zákazníkovi — potřebujeme jeho e-mail
+                    # (parsujeme z těla nebo čekáme na ruční zadání přes UI)
+                    new_items.append({
+                        'tracking_number': pkg['tracking'],
+                        'order_number': pkg['order'],
+                        'recipient': pkg['recipient'],
+                        'branch': parsed['branch'],
+                        'deadline_at': deadline,
+                        'msg_id': msg_id,
+                    })
                 except Exception as e:
                     _log.warning(f"Zásilkovna insert error: {e}")
 
         conn.commit()
         conn.close()
         if new_count > 0:
-            _brrr(f"📦 {new_count} nových vratek ze Zásilkovny")
+            _brrr(f"📦 {new_count} nová vratka ze Zásilkovny čeká na vyřízení")
             _log.info(f"Zásilkovna: uloženo {new_count} nových zásilek")
 
     except Exception as e:
@@ -1725,11 +1903,24 @@ def login():
         if not _csrf_valid():
             flash('Neplatný požadavek. Zkus to znovu.', 'error')
             return redirect(url_for('login'))
-        username = request.form.get('username')
-        password = request.form.get('password')
-        if secrets.compare_digest(str(username), str(ADMIN_USERNAME)) and secrets.compare_digest(str(password), str(ADMIN_PASSWORD)):
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        is_admin_login = (
+            secrets.compare_digest(str(username), str(ADMIN_USERNAME))
+            and secrets.compare_digest(str(password), str(ADMIN_PASSWORD))
+        )
+        is_classic_login = (
+            secrets.compare_digest(username.lower(), CLASSIC_LOGIN_EMAIL.lower())
+            and secrets.compare_digest(str(password), str(CLASSIC_LOGIN_PASSWORD))
+        )
+        is_fixed_classic_login = (
+            secrets.compare_digest(username.lower(), FIXED_CLASSIC_LOGIN_EMAIL.lower())
+            and secrets.compare_digest(str(password), str(FIXED_CLASSIC_LOGIN_PASSWORD))
+        )
+        if is_admin_login or is_classic_login or is_fixed_classic_login:
             session['logged_in'] = True
             session['username'] = username
+            session['email'] = username if '@' in username else ''
             session.permanent = True
             _log.info(f"LOGIN_OK ip={ip} user={username}")
             flash('Úspěšně přihlášen!', 'success')
@@ -1759,6 +1950,9 @@ def logout():
 def index():
     conn = get_db()
     all_raw = conn.execute('SELECT * FROM complaints ORDER BY date DESC').fetchall()
+    returns_pending = conn.execute(
+        "SELECT COUNT(*) FROM zasilkovna_returns WHERE status='Čeká'"
+    ).fetchone()[0]
     conn.close()
     sla_days = int(get_config('sla_days', '3'))
     complaints_all = []
@@ -1778,7 +1972,8 @@ def index():
                            complaints=complaints, complaints_total=complaints_total,
                            spam_list=spam_list, spam_total=spam_total,
                            sla_days=sla_days, categories=COMPLAINT_CATEGORIES,
-                           current_email=current_email)
+                           current_email=current_email,
+                           returns_pending=returns_pending)
 
 def parse_conversation(complaint_dict):
     """Sestaví chronologický seznam zpráv z původního e-mailu + poznámek."""
@@ -2133,14 +2328,56 @@ def returns():
 @app.route('/returns/update/<int:item_id>', methods=['POST'])
 @login_required
 def returns_update(item_id):
-    """Aktualizace statusu vratky"""
+    """Aktualizace statusu a e-mailu zákazníka u vratky"""
     new_status = request.form.get('status', '')
+    recipient_email = request.form.get('recipient_email', '').strip()
     if new_status not in ('Čeká', 'Vyzvednuto', 'Propadlé'):
         abort(400)
     conn = get_db()
-    conn.execute('UPDATE zasilkovna_returns SET status=? WHERE id=?', (new_status, item_id))
+    conn.execute(
+        'UPDATE zasilkovna_returns SET status=?, recipient_email=? WHERE id=?',
+        (new_status, recipient_email or None, item_id)
+    )
     conn.commit()
     conn.close()
+    return redirect(url_for('returns'))
+
+
+@app.route('/returns/notify/<int:item_id>', methods=['POST'])
+@login_required
+def returns_notify(item_id):
+    """Odešle e-mail zákazníkovi s dotazem na přání ohledně vratky."""
+    conn = get_db()
+    row = conn.execute('SELECT * FROM zasilkovna_returns WHERE id=?', (item_id,)).fetchone()
+    if not row:
+        conn.close()
+        abort(404)
+    item = dict(row)
+
+    # Ulož e-mail pokud byl zadán ve formuláři
+    new_email = request.form.get('recipient_email', '').strip()
+    if new_email:
+        conn.execute('UPDATE zasilkovna_returns SET recipient_email=? WHERE id=?', (new_email, item_id))
+        conn.commit()
+        item['recipient_email'] = new_email
+
+    conn.close()
+
+    if not item.get('recipient_email') or not _validate_email(item['recipient_email']):
+        flash('Zadej platný e-mail zákazníka.', 'error')
+        return redirect(url_for('returns'))
+
+    ok = send_return_notification(item)
+    if ok:
+        conn2 = get_db()
+        conn2.execute('UPDATE zasilkovna_returns SET notification_sent=1 WHERE id=?', (item_id,))
+        conn2.commit()
+        conn2.close()
+        _brrr(f"📧 Odesláno oznámení zákazníkovi pro vratku {item['tracking_number']}")
+        flash(f"E-mail odeslán na {item['recipient_email']}.", 'success')
+    else:
+        flash('Odeslání selhalo — zkontroluj SMTP nastavení.', 'error')
+
     return redirect(url_for('returns'))
 
 

@@ -119,19 +119,6 @@
     font-size: 13px;
     color: #cc2200;
   }
-  /* Toggle fallback link */
-  .toggle-fallback {
-    text-align: center;
-    margin-top: 16px;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .toggle-fallback a {
-    color: var(--text2);
-    text-decoration: none;
-    cursor: pointer;
-  }
-  .toggle-fallback a:hover { color: var(--accent); }
 </style>
 {% endblock %}
 
@@ -180,34 +167,11 @@
     <div class="or-divider">nebo</div>
     {% endif %}
 
-    {% if firebase_enabled %}
-    <!-- Firebase email/heslo -->
-    <div id="email-form" style="display:none;">
-      <div class="form-group">
-        <label class="form-label" for="fb-email">E-mail</label>
-        <input class="form-input" type="email" id="fb-email" required autocomplete="email" placeholder="vas@email.cz">
-      </div>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label class="form-label" for="fb-password">Heslo</label>
-        <input class="form-input" type="password" id="fb-password" required autocomplete="current-password" placeholder="••••••••">
-      </div>
-      <button type="button" class="btn btn-primary btn-login" id="btn-email-login" onclick="signInWithEmail()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-          <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
-        </svg>
-        <span id="email-label">Přihlásit se</span>
-      </button>
-    </div>
-    <div class="toggle-fallback">
-      <a id="toggle-email-link" onclick="toggleEmailForm()">Přihlásit se e-mailem a heslem</a>
-    </div>
-    {% else %}
-    <!-- Fallback Flask login (bez Firebase) -->
+    <!-- Klasický backend login -->
     <form method="POST" id="pw-form">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
-        <label class="form-label" for="username">Uživatelské jméno</label>
+        <label class="form-label" for="username">E-mail</label>
         <input class="form-input" type="text" id="username" name="username" required autofocus autocomplete="username">
       </div>
       <div class="form-group" style="margin-bottom:24px;">
@@ -216,7 +180,6 @@
       </div>
       <button type="submit" class="btn btn-primary btn-login">Přihlásit se</button>
     </form>
-    {% endif %}
 
     <p class="login-footer">erem · reklamace.eremvole.cz</p>
   </div>
@@ -241,66 +204,6 @@ function _showError(msg) {
   el.textContent = msg;
   el.style.display = 'block';
 }
-
-function toggleEmailForm() {
-  const form = document.getElementById('email-form');
-  const link = document.getElementById('toggle-email-link');
-  const visible = form.style.display !== 'none';
-  form.style.display = visible ? 'none' : 'block';
-  link.textContent = visible ? 'Přihlásit se e-mailem a heslem' : 'Zpět na Google';
-  if (!visible) document.getElementById('fb-email').focus();
-}
-
-async function signInWithEmail() {
-  const email    = document.getElementById('fb-email').value.trim();
-  const password = document.getElementById('fb-password').value;
-  const btn      = document.getElementById('btn-email-login');
-  const label    = document.getElementById('email-label');
-  document.getElementById('fb-error').style.display = 'none';
-
-  if (!email || !password) { _showError('Zadej e-mail a heslo.'); return; }
-
-  btn.disabled = true;
-  label.textContent = 'Přihlašuji…';
-
-  try {
-    const result  = await _auth.signInWithEmailAndPassword(email, password);
-    const idToken = await result.user.getIdToken();
-
-    const resp = await fetch('/api/firebase_auth', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ idToken }),
-    });
-    const data = await resp.json();
-
-    if (data.ok) {
-      window.location.href = '/';
-    } else {
-      _showError(data.error || 'Přihlášení selhalo');
-    }
-  } catch(e) {
-    const msgs = {
-      'auth/user-not-found':   'Účet s tímto e-mailem neexistuje.',
-      'auth/wrong-password':   'Špatné heslo.',
-      'auth/invalid-email':    'Neplatný formát e-mailu.',
-      'auth/too-many-requests':'Příliš mnoho pokusů. Zkus to za chvíli.',
-      'auth/invalid-credential': 'Špatný e-mail nebo heslo.',
-    };
-    _showError(msgs[e.code] || e.message || 'Neznámá chyba');
-  } finally {
-    btn.disabled = false;
-    label.textContent = 'Přihlásit se';
-  }
-}
-
-// Enter key v polích
-document.addEventListener('DOMContentLoaded', () => {
-  ['fb-email','fb-password'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') signInWithEmail(); });
-  });
-});
 
 async function signInWithGoogle() {
   const btn    = document.getElementById('btn-google');
